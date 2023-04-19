@@ -16,6 +16,7 @@
 
 from transformers.models.bart.modeling_bart import *
 
+
 # Modified: Add _make_nar_mask()
 def _make_nar_mask(
     input_ids_shape: torch.Size, dtype: torch.dtype, device: torch.device, past_key_values_length: int = 0
@@ -75,8 +76,7 @@ class NARBartDecoder(BartDecoder):
                 inputs_embeds.dtype,
                 device=inputs_embeds.device,
                 past_key_values_length=past_key_values_length,
-            )
-        print(input_shape)
+            )            
         if attention_mask is not None:
             # [bsz, seq_len] -> [bsz, 1, tgt_seq_len, src_seq_len]
             expanded_attn_mask = _expand_mask(attention_mask, inputs_embeds.dtype, tgt_len=input_shape[-1]).to(
