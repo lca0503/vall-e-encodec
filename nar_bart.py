@@ -106,8 +106,6 @@ class NARBartModel(BartModel):
         self.post_init()
         
 
-_CONFIG_FOR_DOC = "BartConfig"
-        
 class NARBartForConditionalGeneration(BartForConditionalGeneration):
     base_model_prefix = "model"
     _keys_to_ignore_on_load_missing = [
