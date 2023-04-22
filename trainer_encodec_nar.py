@@ -7,7 +7,7 @@ from transformers import (
     Seq2SeqTrainer,
     Seq2SeqTrainingArguments
 )
-from mix_bart import MIXBartForConditionalGeneration
+from nar_bart import NARBartForConditionalGeneration
 
 
 name = 'libri960_ar_wr0.08_lr3e-5'
