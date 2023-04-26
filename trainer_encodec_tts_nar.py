@@ -17,7 +17,7 @@ wandb.init(name)
 train_dataset = load_dataset("voidful/librispeech_encodec", split="trainclean100+trainclean360+trainother500")
 valid_dataset = load_dataset("voidful/librispeech_encodec", split="validationclean")
 tokenizer = AutoTokenizer.from_pretrained("voidful/bart-base-unit")
-model = BartForConditionalGeneration.from_pretrained("voidful/bart-base-unit")
+model = NARBartForConditionalGeneration.from_pretrained("voidful/bart-base-unit")
 
 # Set training parameters
 training_args = Seq2SeqTrainingArguments(
