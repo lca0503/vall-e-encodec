@@ -29,12 +29,13 @@ training_args = Seq2SeqTrainingArguments(
     weight_decay=1e-4,
     logging_dir="./logs",
     logging_steps=500,
-    save_steps=2000,
+    save_steps=10000,
     save_total_limit=2,
     evaluation_strategy="steps",
-    eval_steps=2000,
+    eval_steps=10000,
     fp16=True,
     gradient_accumulation_steps=8,
+    #eval_accumulation_steps=8,
     learning_rate=1e-4,
 )
 
@@ -95,7 +96,7 @@ valid_dataset = valid_dataset.map(process_data_to_model_inputs,
 
 def compute_metrics(eval_pred):
     logits, labels = eval_pred
-    predictions = np.argmax(logits, axis=-1)
+    predictions = torch.max(logits, axis=-1).indicies
     labels = [i[i != -100] for i in labels]
     decoded_preds = tokenizer.batch_decode(predictions, skip_special_tokens=True)
     decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
@@ -120,7 +121,7 @@ trainer = Seq2SeqTrainer(
     eval_dataset=valid_dataset,
     data_collator=data_collator,
     tokenizer=tokenizer,
-    compute_metrics=compute_metrics,
+    #compute_metrics=compute_metrics,
 )
 
 # Start training
