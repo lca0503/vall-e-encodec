@@ -1,15 +1,12 @@
 import argparse
-from datasets import load_dataset
-from transformers import (
-    AutoTokenizer,
-    DataCollatorForSeq2Seq,
-    Seq2SeqTrainer,
-    Seq2SeqTrainingArguments,
-    BartForConditionalGeneration
-)
-from nar_bart import NARBartForConditionalGeneration
-import torch
 import json
+
+import torch
+from datasets import load_dataset
+from tqdm import tqdm
+from transformers import AutoTokenizer, BartForConditionalGeneration
+
+from nar_bart import NARBartForConditionalGeneration
 
 
 def get_args():
@@ -35,32 +32,43 @@ def get_args():
     parser.add_argument(
         "--ar_model_ckpt",
         type=str,
-        default="./training_output/checkpoint-300000"
+        default="./training_output/checkpoint-60000"
     )
     parser.add_argument(
         "--nar_model_ckpt",
         type=str,
-        default="voidful/bart-base-unit"
+        default="./training_output/checkpoint-60000"
     )
     parser.add_argument(
         "--result_json",
         type=str,
         default="./result.json"
     )
+    parser.add_argument(
+        "--device",
+        type=str,
+        default="cuda"
+    )
     
     args = parser.parse_args()
     return args
 
 
-def inference_ar(ar_model, ar_tokenizer, dataset):
+def inference_ar(ar_model, ar_tokenizer, dataset, device, batch=16):
     decoder_outputs = {}
-    for i in range(len(dataset)):
-        file_id = dataset['id'][i]
-        inputs = ar_tokenizer([dataset['text'][i]], padding='max_length', 
-                                 truncation=True, max_length=1024, return_tensors="pt")
-        output_ids = ar_model.generate(input_ids=inputs['input_ids'], max_length=1024)
-        decode_output = ar_tokenizer.decode(output_ids[0], skip_special_tokens=True)
-        decoder_outputs[file_id] = [token.split('v_tok_')[1] for token in decode_output.split(' ')]
+    force_words_ids = ar_tokenizer([f"v_tok_{u}" for u in range(1024)], 
+                                  add_special_tokens=True).input_ids
+    for i in tqdm(range(0, len(dataset), batch)):
+        file_ids = dataset['id'][i : i + batch]
+        inputs = ar_tokenizer(dataset['text'][i : i + batch], padding='max_length', truncation=True,
+                              max_length=1024, return_tensors="pt").to(device)
+        output_ids = ar_model.generate(input_ids=inputs['input_ids'],
+                                       max_length=1024, force_words_ids=force_words_ids)
+        decode_outputs = ar_tokenizer.decode(output_ids, skip_special_tokens=True)
+        decoder_outputs.update({
+            file_id: [int(token.strip(' ')) for token in decode_output.split('v_tok_')[1:]]
+            for file_id, decode_output in zip(file_ids, decode_outputs)
+        })
     return decoder_outputs
 
 
@@ -71,7 +79,7 @@ def filter_token(output, target_tokens):
     return output
 
 
-def get_target_token_sets(tokenizer):
+def get_nar_target_token_sets(tokenizer):
     target_token_sets = [
         ' '.join([f"v_tok_{u + l * 1024}" for u in range(1024)])
         for l in range(1, 8)
@@ -87,26 +95,27 @@ def get_target_token_sets(tokenizer):
     return target_token_sets
 
 
-def inference_nar(nar_model, nar_tokenizer, dataset):
+def inference_nar(nar_model, nar_tokenizer, dataset, device):
     decoder_outputs = {}
-    target_token_sets = get_target_token_sets(nar_tokenizer)
+    target_token_sets = get_nar_target_token_sets(nar_tokenizer)
     
-    for i in range(len(dataset)):
+    for i in tqdm(range(len(dataset))):
         file_id = dataset['id'][i]
-        inputs = nar_tokenizer([dataset['text'][i]], padding='max_length', 
-                                 truncation=True, max_length=1024, return_tensors="pt")
+        inputs = nar_tokenizer([dataset['text'][i]], padding='max_length', truncation=True, 
+                               max_length=1024, return_tensors="pt").to(device)
         decoder_outputs[file_id] = decoder_outputs.get(file_id, {})
         
         for l in range(7):
-            decoder_input_id = nar_tokenizer.convert_tokens_to_ids(
+            decoder_input_ids = nar_tokenizer.convert_tokens_to_ids(
                 [f"v_tok_{u + l * 1024}" for u in dataset[f'encodec_{l}'][i]])
-            output = nar_model(inputs['input_id'], decoder_input_ids=[decoder_input_id])
+            decoder_input_ids = torch.tensor([decoder_input_ids], device=device)
+            output = nar_model(inputs['input_ids'], decoder_input_ids=decoder_input_ids)
             output = filter_token(output, target_token_sets[l])
             decode_ids = torch.argmax(output.logits, dim=-1)
             decode_output = nar_tokenizer.batch_decode(decode_ids, skip_special_tokens=True)
-            
+
             decoder_outputs[file_id][f'encodec_{l + 1}'] = \
-                [token.split('v_tok_')[0] for token in decode_output.split(' ')]
+                [int(token.strip(' ')) - (l + 1) * 1024 for token in decode_output[0].split('v_tok_')[1:]]
     
     return decoder_outputs
 
@@ -120,27 +129,29 @@ def write_decoder_output_ids(ar_outputs, nar_outputs, result_json):
     }
     with open(result_json, 'w+') as f:
         json.dump(result, f)
-        
+
 
 def main(args):
+    device = args.device
+    
     # dataset
     dataset = load_dataset("voidful/librispeech_encodec", split="trainclean100")
     dataset = dataset.filter(lambda x : len(x[f"encodec_0"]) <= 1000)
     dataset = dataset.shuffle(seed=42).select(range(30))
     
     if args.use_ar_model:
-        ar_model = eval(args.ar_model).from_pretrained(args.ar_model_ckpt)
+        ar_model = eval(args.ar_model).from_pretrained(args.ar_model_ckpt).to(device)
         ar_tokenizer = AutoTokenizer.from_pretrained(args.ar_model_ckpt)
-        ar_decoder_output_ids = inference_ar(ar_model, ar_tokenizer, dataset)
+        ar_decoder_output_ids = inference_ar(ar_model, ar_tokenizer, dataset, device)
     else:
         ar_decoder_output_ids = {
             dataset['id'][i]: dataset['encodec_0'][i]
             for i in range(len(dataset))
         }
     if args.use_nar_model:
-        nar_model = eval(args.nar_model).from_pretrained(args.nar_model_ckpt)
+        nar_model = eval(args.nar_model).from_pretrained(args.nar_model_ckpt).to(device)
         nar_tokenizer = AutoTokenizer.from_pretrained(args.nar_model_ckpt)
-        nar_decoder_output_ids = inference_nar(nar_model, nar_tokenizer, dataset)
+        nar_decoder_output_ids = inference_nar(nar_model, nar_tokenizer, dataset, device)
     else:
         nar_decoder_output_ids = {
             dataset['id'][i]: {
