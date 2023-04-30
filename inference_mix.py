@@ -60,14 +60,14 @@ def inference_ar(ar_model, ar_tokenizer, dataset):
                                  truncation=True, max_length=1024, return_tensors="pt")
         output_ids = ar_model.generate(input_ids=inputs['input_ids'], max_length=1024)
         decode_output = ar_tokenizer.decode(output_ids[0], skip_special_tokens=True)
-        decoder_outputs[file_id] = [token.split('v_tok_')[0] for token in decode_output.split(' ')]
+        decoder_outputs[file_id] = [token.split('v_tok_')[1] for token in decode_output.split(' ')]
     return decoder_outputs
 
 
 def filter_token(output, target_tokens):
     for i in range(output.logits.size(-1)):
         if i not in target_tokens:
-            output[:, :, i] = float('-inf')
+            output.logits[:, :, i] = float('-inf')
     return output
 
 
