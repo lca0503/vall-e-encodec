@@ -54,7 +54,7 @@ def get_args():
     return args
 
 
-def inference_ar(ar_model, ar_tokenizer, dataset, device, batch=16):
+def inference_ar(ar_model, ar_tokenizer, dataset, device, batch=4):
     decoder_outputs = {}
     force_words_ids = ar_tokenizer([f"v_tok_{u}" for u in range(1024)], 
                                   add_special_tokens=True).input_ids
@@ -62,9 +62,9 @@ def inference_ar(ar_model, ar_tokenizer, dataset, device, batch=16):
         file_ids = dataset['id'][i : i + batch]
         inputs = ar_tokenizer(dataset['text'][i : i + batch], padding='max_length', truncation=True,
                               max_length=1024, return_tensors="pt").to(device)
-        output_ids = ar_model.generate(input_ids=inputs['input_ids'],
-                                       max_length=1024, force_words_ids=force_words_ids)
-        decode_outputs = ar_tokenizer.decode(output_ids, skip_special_tokens=True)
+        output_ids = ar_model.generate(input_ids=inputs['input_ids'], num_beams=1, do_sample=False,
+                                       max_length=1024)#, force_words_ids=force_words_ids)
+        decode_outputs = ar_tokenizer.decode(output_ids[0], skip_special_tokens=True)
         decoder_outputs.update({
             file_id: [int(token.strip(' ')) for token in decode_output.split('v_tok_')[1:]]
             for file_id, decode_output in zip(file_ids, decode_outputs)
@@ -135,7 +135,7 @@ def main(args):
     device = args.device
     
     # dataset
-    dataset = load_dataset("voidful/librispeech_encodec", split="trainclean100")
+    dataset = load_dataset("voidful/librispeech_encodec", split="validationclean")
     dataset = dataset.filter(lambda x : len(x[f"encodec_0"]) <= 1000)
     dataset = dataset.shuffle(seed=42).select(range(30))
     
