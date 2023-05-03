@@ -1,4 +1,5 @@
 # Sox Data
+
 ## Usage
 ```
 1. Download the LibriTTS dataset
@@ -18,7 +19,11 @@ bash waveform_generation.sh
 
 6. Change commands to instructions
 python3 commands_to_instructions.py
+
+7. Change source and target to encodec unit
+python3 encodec_unit.py
 ```
+
 ## After running these commands, you should get ...
 ```
 data/
