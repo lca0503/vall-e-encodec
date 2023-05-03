@@ -13,6 +13,7 @@ def main(args):
     
     Path(args.output_dir).mkdir(parents=True, exist_ok=True)
     Path(f"{args.output_dir}/source").mkdir(parents=True, exist_ok=True)
+    Path(f"{args.output_dir}/transcription").mkdir(parents=True, exist_ok=True)
     path_to_transcription = defaultdict()
     
     with open(args.transcription_path, 'r') as f:
@@ -26,15 +27,14 @@ def main(args):
 
     data_subset = random.sample(path_to_transcription.items(), args.n_sample)
     
-    subset_transcription_file = open(f"{args.output_dir}/transcriptions.tsv", 'w')
-        
     for idx, (speech_path, transcription) in enumerate(tqdm(data_subset,
                                                             desc="Processing Subset", ascii=False, ncols=100)):
         new_file_idx = '{:06d}'.format(idx)
         new_speech_path = f"{args.output_dir}/source/{new_file_idx}.wav"
+        new_transcription_path = f"{args.output_dir}/transcription/{new_file_idx}.txt"
         shutil.copyfile(speech_path, new_speech_path)
-
-        subset_transcription_file.write("\t".join([new_speech_path, transcription]))        
+        with open(new_transcription_path, "w") as f:
+            f.write(transcription)        
     
         
 def parse_args() -> Namespace:
