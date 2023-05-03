@@ -18,13 +18,13 @@ model = BartForConditionalGeneration.from_pretrained("voidful/bart-base-unit")
     
 # Set training parameters
 training_args = Seq2SeqTrainingArguments(
-    output_dir="./training_output",
-    num_train_epochs=15,
-    per_device_train_batch_size=4,
-    per_device_eval_batch_size=4,
+    output_dir="./training_output_ar",
+    num_train_epochs=10,
+    per_device_train_batch_size=8,
+    per_device_eval_batch_size=8,
     warmup_ratio=0.08,
     weight_decay=1e-4,
-    logging_dir="./logs",
+    logging_dir="./logs_ar",
     logging_steps=500,
     save_steps=5000,
     save_total_limit=2,
@@ -32,7 +32,7 @@ training_args = Seq2SeqTrainingArguments(
     eval_steps=5000,
     predict_with_generate=True,
     fp16=True,
-    gradient_accumulation_steps=4,
+    gradient_accumulation_steps=2,
     learning_rate=1e-4,
     generation_max_length=1024,
 )
