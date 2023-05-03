@@ -7,20 +7,19 @@ from tqdm import tqdm
 
 
 def main(args):
-    todo = list(Path(args.data_dir).rglob("*.original.txt"))
+    todo = list(Path(args.data_dir).rglob("*.trans.tsv"))
     path_to_transcription = defaultdict()
     
-    for transcription_path in tqdm(todo, desc="Loading", ascii=False, ncols=100):
-        transcription_dir = os.path.dirname(transcription_path)
-        speech_id = str(os.path.basename(transcription_path)).split('.')[0]
-        speech_path = f"{transcription_dir}/{speech_id}.wav"        
-        assert os.path.isfile(speech_path)
-        with open(transcription_path, 'r') as f:
-            transcription = ""
+    for transcription_file in tqdm(todo, desc="Loading", ascii=False, ncols=100):
+        transcription_dir = os.path.dirname(transcription_file)
+        with open(transcription_file, 'r') as f:
             content = f.readlines()
             for line in content:
-                transcription += str(line)
-                path_to_transcription[speech_path] = transcription
+                line = line.split('\t')
+                speech_id = line[0]
+                speech_path = f"{transcription_dir}/{speech_id}.wav"
+                original_text = line[1]
+                path_to_transcription[speech_path] = original_text
                 
     with open(args.output_path, 'w') as f:
         for speech_path, transcription in path_to_transcription.items():
