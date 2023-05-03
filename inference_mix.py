@@ -131,6 +131,7 @@ def inference_nar(nar_model, nar_tokenizer, dataset, device, use_gt=False):
 
 def inference_ar_nar(ar_model, ar_tokenizer, nar_model, nar_tokenizer, dataset, device):
     decoder_outputs = {}
+    target_token_sets = get_nar_target_token_sets(nar_tokenizer)
     
     for i in tqdm(range(len(dataset))):
         file_id = dataset['id'][i]
@@ -140,13 +141,13 @@ def inference_ar_nar(ar_model, ar_tokenizer, nar_model, nar_tokenizer, dataset, 
                               max_length=1024, return_tensors="pt").to(device)
         ar_output_ids = ar_model.generate(input_ids=inputs['input_ids'], num_beams=1, do_sample=False,
                                           max_length=1024)
-        decode_output = ar_tokenizer.decode(output_ids[0], skip_special_tokens=True)
-        decoder_outputs[file_id]["encodec_0"] = [int(token.strip(' ')) for token in decode_output.split('v_tok_')[1:]]
+        ar_decode_output = ar_tokenizer.decode(ar_output_ids[0], skip_special_tokens=True)
+        decoder_outputs[file_id]["encodec_0"] = [int(token.strip(' ')) for token in ar_decode_output.split('v_tok_')[1:]]
         
         for l in range(1, 8):
             decoder_input_ids = nar_tokenizer.convert_tokens_to_ids(
                 [f"v_tok_{u + (l - 1) * 1024}" for u in decoder_outputs[file_id][f"encodec_{l - 1}"]])
-            decoder_input_ids = torch.tensro([decoder_input_ids], device=device)
+            decoder_input_ids = torch.tensor([decoder_input_ids], device=device)
             output = nar_model(inputs['input_ids'], decoder_input_ids=decoder_input_ids)
             output = filter_token(output, target_token_sets[l - 1])
             decode_ids = torch.argmax(output.logits, dim=-1)
