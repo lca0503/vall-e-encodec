@@ -16,8 +16,8 @@ python3 split_effects.py
 5. Generate waveform with sox effects
 bash waveform_generation.sh
 
-6. Merge commands file and transcriptions file
-python3 merge.py
+6. Change commands to instructions
+python3 commands_to_instructions.py
 ```
 ## After running these commands, you should get ...
 ```
