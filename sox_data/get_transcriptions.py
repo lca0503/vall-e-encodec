@@ -25,7 +25,7 @@ def main(args):
     with open(args.output_path, 'w') as f:
         for speech_path, transcription in path_to_transcription.items():
             f.write("\t".join([speech_path, transcription]))
-            
+            f.write("\n")
         
 def parse_args() -> Namespace:
     parser = ArgumentParser()
