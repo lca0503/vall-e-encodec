@@ -1,4 +1,5 @@
 import random
+from argparse import ArgumentParser, Namespace
 from functools import partial
 from pathlib import Path
 from time import time
@@ -8,11 +9,10 @@ import numpy as np
 import torch
 import torchaudio
 from datasets import Dataset
-from tqdm import tqdm
-
 from encodec import EncodecModel
 from encodec.utils import convert_audio
-from argparse import ArgumentParser, Namespace
+from tqdm import tqdm
+
 
 def set_seed(seed):
     np.random.seed(seed)
@@ -113,6 +113,7 @@ def main(args):
 
     Soxdataset = Dataset.from_dict(dataset)
     Soxdataset.push_to_hub("lca0503/soxdata_small_encodec")
+
     
 def parse_args() -> Namespace:
     parser = ArgumentParser()

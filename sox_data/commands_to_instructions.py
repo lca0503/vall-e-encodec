@@ -1,8 +1,8 @@
+import json
 import os
 import random
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
-import json
 
 
 def main(args):    
