@@ -118,8 +118,8 @@ def main(args):
 def parse_args() -> Namespace:
     parser = ArgumentParser()
     parser.add_argument("-s", "--seed", type=int, default=0)
+    parser.add_argument("-d", "--data_dir", type=str, default="./data/libritts_subset")
     parser.add_argument("--device", type=torch.device, default="cuda")
-    parser.add_argument("-t", "--data_dir", type=str, default="./data/libritts_subset")
     
     args = parser.parse_args()
     return args
