@@ -1,8 +1,8 @@
-import json
 import os
 import random
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
+import json
 
 
 def main(args):    
@@ -22,13 +22,13 @@ def main(args):
             effect = line[2]
             instruction = ""
             if effect == "tempo":
-                p1 = line[3]
+                p1 = line[3].strip()
                 instruction = random.choice(effect_to_instructions["tempo"])
                 instruction = instruction.replace("${file}", source_speech_path)
                 instruction = instruction.replace("${newfile}", target_speech_path)
                 instruction = instruction.replace("${p1}", p1)
             elif effect == "bass":
-                p1 = line[3]
+                p1 = line[3].strip()
                 instruction = random.choice(effect_to_instructions["bass"])
                 instruction = instruction.replace("${file}", source_speech_path)
                 instruction = instruction.replace("${newfile}", target_speech_path)
