@@ -22,7 +22,7 @@ def main(args):
             line = line.split('\t')
             assert len(line) == 2, line
             speech_path = line[0]
-            transcription = line[1]
+            transcription = line[1].strip()
             path_to_transcription[speech_path] = transcription
 
     data_subset = random.sample(path_to_transcription.items(), args.n_sample)
