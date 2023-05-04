@@ -12,7 +12,7 @@ python3 get_transcriptions.py
 python3 get_subset.py
 
 4. Generate effect splits
-python3 split_effects.py
+python3 split_effect.py
 
 5. Generate waveform with sox effects
 bash waveform_generation.sh
