@@ -57,3 +57,5 @@ data/
 │       └── ...
 └── libritts_transcriptions.tsv
 ```
+
+Encodec small Sox dataset is now available at [huggingface](https://huggingface.co/datasets/lca0503/soxdata_small_encodec). (Only process 20000 waveforms from LibriTTS)
