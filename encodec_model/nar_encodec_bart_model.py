@@ -16,7 +16,7 @@
 
 from transformers.models.bart.modeling_bart import *
 from encodec_bart_model import BartEncodecEncoder
-from encodec_tts.nar_bart import NARBartDecoder
+from nar_bart_model import NARBartDecoder
 
 
 class NARBartEncodecModel(BartModel):

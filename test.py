@@ -1,7 +1,7 @@
 import torch
 from transformers import AutoTokenizer
 
-from encodec_longt5_model import LongT5EncodecForConditionalGeneration
+from encodec_model.encodec_longt5_model import LongT5EncodecForConditionalGeneration
 
 tokenizer = AutoTokenizer.from_pretrained("voidful/long-t5-encodec-tglobal-base")
 model = LongT5EncodecForConditionalGeneration.from_pretrained("voidful/long-t5-encodec-tglobal-base")

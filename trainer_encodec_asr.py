@@ -7,7 +7,7 @@ from transformers import (
     Seq2SeqTrainingArguments
 )
 
-from encodec_bart_model import BartEncodecForConditionalGeneration
+from encodec_model.encodec_bart_model import BartEncodecForConditionalGeneration
 
 # Load dataset and tokenizer
 dataset = load_dataset("voidful/librispeech_encodec")

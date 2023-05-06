@@ -6,7 +6,7 @@ from datasets import load_dataset
 from tqdm import tqdm
 from transformers import AutoTokenizer, BartForConditionalGeneration
 
-from nar_bart import NARBartForConditionalGeneration
+from encodec_model.nar_bart_model import NARBartForConditionalGeneration
 
 
 def get_args():
