@@ -12,11 +12,11 @@ from encodec_model.nar_encodec_bart_model import NARBartEncodecForConditionalGen
 
 
 TRAIN_ARGS = Seq2SeqTrainingArguments(
-    output_dir="./training_output/nar_full",
+    output_dir="./training_output/ar_full",
     num_train_epochs=20,
     per_device_train_batch_size=2,
     per_device_eval_batch_size=2,
-    warmup_ratio=0.07
+    warmup_ratio=0.07,
     weight_decay=0.01,
     logging_dir="./logs",
     logging_steps=10,
@@ -36,9 +36,8 @@ def get_args():
     parser.add_argument("--dataset", type=str, default="lca0503/soxdata_small_encodec")
     parser.add_argument("--train_splits", type=str, nargs="+", default=["train"])
     parser.add_argument("--eval_splits", type=str, nargs="+", default=["validation"])
-    parser.add_argument("--model", type=str, default="NARBartForConditionalGeneration")
+    parser.add_argument("--model", type=str, default="BartForConditionalGeneration")
     parser.add_argument("--model_card", type=str, default="voidful/bart-base-unit")
-    parser.add_argument("--nar_layers", type=int, nargs="+", default=list(range(1, 8)))
 
     args = parser.parse_args()
     return args
@@ -70,10 +69,8 @@ def get_encodec_units(data, b, split='src'):
 
 
 def process_data_to_model_inputs(batch, args, tokenizer):
-    nar_layers = args.nar_layers
 
     input_ids = []
-    encodec_unit_ids = []
     attention_masks = []
     decoder_input_ids = []
     labels = []
@@ -90,24 +87,24 @@ def process_data_to_model_inputs(batch, args, tokenizer):
         transcription_ids = tokenizer(batch['transcription'][b])['input_ids'][1 : -1]
         encodec_layer0 = tokenizer.convert_tokens_to_ids(
                 [f"v_tok_{u}" for u in batch[f'src_encodec_{0}'][b]])
-        encoder_input = [bos_token_id] + \
+        # encodec_layer0 = []
+        encoder_input_id = [bos_token_id] + \
                         instruction_ids + [sep_token_id] + \
                         transcription_ids + [sep_token_id] + \
                         encodec_layer0 + [eos_token_id]
-        seq_len = len(encoder_input)
+        seq_len = len(encoder_input_id)
         attention_mask = get_attention_mask(seq_len, max_length)
-
-        for l in nar_layers:
-            # decoder input
-            decoder_input_id = tokenizer.convert_tokens_to_ids(
-                [f"v_tok_{u + (l - 1) * 1024}" for u in batch[f'tgt_encodec_{l - 1}'][b]])
-            label = tokenizer.convert_tokens_to_ids(
-                [f"v_tok_{u + l * 1024}" for u in batch[f'tgt_encodec_{l}'][b]])
-            
-            input_ids.append(encoder_input)
-            attention_masks.append(attention_mask)
-            decoder_input_ids.append(decoder_input_id)
-            labels.append(label)
+        
+        # decoder input
+        encode_input = tokenizer.convert_tokens_to_ids(
+            [f"v_tok_{u}" for u in batch[f'tgt_encodec_{0}'][b]])
+        decoder_input_id = [tokenizer.bos_token_id] + encode_input
+        label = encode_input + [tokenizer.eos_token_id]
+        
+        input_ids.append(encoder_input_id)
+        attention_masks.append(attention_mask)
+        decoder_input_ids.append(decoder_input_id)
+        labels.append(label)
 
     input_ids = pad_sequences(input_ids, max_length=max_length,
                               padding_value=tokenizer.pad_token_id)
