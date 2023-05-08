@@ -9,9 +9,7 @@ log() {
 
 # General configuration
 data_path="./data"                                          # Data Path for storage
-#subsets="train-clean-100"                                   # Subsets for preparation
-subsets="train-clean-100 train-clean-360 train-other-500"   # Subsets for preparation
-
+subsets="train-clean-100 train-clean-360 train-other-500 dev-clean dev-other test-clean test-other"  # Subsets for preparation
 
 # Create Datapath
 log "mkdir -p ${data_path}"
