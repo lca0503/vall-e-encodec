@@ -1,5 +1,4 @@
 from argparse import ArgumentParser, Namespace
-
 from datasets import load_dataset
 from jiwer import wer
 from transformers import (AutoTokenizer, BartForConditionalGeneration,
@@ -96,10 +95,10 @@ def compute_metrics(eval_pred, tokenizer):
 
 def get_dataset(tokenizer, args):
     train_dataset = load_dataset(args.dataset, "train", split='+'.join(args.train_splits))
-    valid_dataset = load_dataset(args.dataset, "valid", split='+'.join(args.valid_splits))
+    eval_dataset = load_dataset(args.dataset, "eval", split='+'.join(args.eval_splits))
 
     train_dataset = train_dataset.filter(filter_examples)
-    valid_dataset = valid_dataset.filter(filter_examples)
+    eval_dataset = eval_dataset.filter(filter_examples)
 
     train_dataset = train_dataset.map(
         process_data_to_model_inputs,
@@ -108,15 +107,15 @@ def get_dataset(tokenizer, args):
         batch_size=TRAIN_ARGS.per_device_train_batch_size,
         fn_kwargs={"tokenizer": tokenizer}
     )
-    valid_dataset = valid_dataset.map(
+    eval_dataset = eval_dataset.map(
         process_data_to_model_inputs,
-        remove_columns=valid_dataset.column_names,
+        remove_columns=eval_dataset.column_names,
         batched=True,
         batch_size=TRAIN_ARGS.per_device_eval_batch_size,
         fn_kwargs={"tokenizer": tokenizer}
     )
 
-    return train_dataset, valid_dataset
+    return train_dataset, eval_dataset
 
 
 def main(args):
@@ -125,13 +124,13 @@ def main(args):
     tokenizer = AutoTokenizer.from_pretrained(args.model_name) 
     data_collator = DataCollatorForSeq2Seq(tokenizer, model=model)
     
-    train_dataset, valid_dataset = get_dataset(tokenizer, args)
+    train_dataset, eval_dataset = get_dataset(tokenizer, args)
     
     trainer = Seq2SeqTrainer(
         model=model,
         args=TRAIN_ARGS,
         train_dataset=train_dataset,
-        eval_dataset=valid_dataset,
+        eval_dataset=eval_dataset,
         data_collator=data_collator,
         tokenizer=tokenizer,
         compute_metrics=lambda preds : compute_metrics(preds, tokenizer),
@@ -145,7 +144,7 @@ def parse_args() -> Namespace:
     parser.add_argument("-d", "--dataset", type=str, default="voidful/librispeech_encodec")
     parser.add_argument("-t", "--train_splits", type=str, nargs="+",
                         default=["trainclean100", "trainclean360", "trainother500"])
-    parser.add_argument("-v", "--valid_splits", type=str, nargs="+",
+    parser.add_argument("-e", "--eval_splits", type=str, nargs="+",
                         default=["validationclean"])
     parser.add_argument("-m", "--model_name", type=str, default="voidful/bart-base-unit")
 
