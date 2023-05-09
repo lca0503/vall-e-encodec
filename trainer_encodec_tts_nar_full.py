@@ -6,7 +6,6 @@ from transformers import (AutoTokenizer, DataCollatorForSeq2Seq,
                           Seq2SeqTrainer, Seq2SeqTrainingArguments)
 
 import wandb
-
 from encodec_model.nar_bart_model import NARBartForConditionalGeneration
 
 wandb.init(project="encodec_tts", 

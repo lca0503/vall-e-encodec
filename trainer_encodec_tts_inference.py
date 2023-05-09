@@ -1,5 +1,5 @@
-from argparse import ArgumentParser, Namespace
 import json
+from argparse import ArgumentParser, Namespace
 
 import torch
 from datasets import load_dataset
