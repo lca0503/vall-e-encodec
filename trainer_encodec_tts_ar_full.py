@@ -1,47 +1,37 @@
-import argparse
-import wandb
-
+from argparse import ArgumentParser, Namespace
 from datasets import load_dataset
 from jiwer import wer
-from transformers import (AutoTokenizer, BartForConditionalGeneration, LongT5ForConditionalGeneration,
-                          DataCollatorForSeq2Seq, Seq2SeqTrainer, Seq2SeqTrainingArguments,
-                          )
+from transformers import (AutoTokenizer, BartForConditionalGeneration,
+                          DataCollatorForSeq2Seq, Seq2SeqTrainer,
+                          Seq2SeqTrainingArguments)
 
-from encodec_model.nar_bart_model import NARBartForConditionalGeneration
-from encodec_model.nar_encodec_bart_model import NARBartEncodecForConditionalGeneration
+import wandb
+
+wandb.init(project="encodec_tts", 
+           name="bart-base-ar-full",
+)
 
 
 TRAIN_ARGS = Seq2SeqTrainingArguments(
-    output_dir="./training_output/ar_full_epoch20",
-    num_train_epochs=20,
-    per_device_train_batch_size=2,
-    per_device_eval_batch_size=2,
-    warmup_ratio=0.07,
-    weight_decay=0.01,
-    logging_dir="./logs",
-    logging_steps=10,
+    output_dir="./training_output/ar_full",
+    num_train_epochs=10,
+    per_device_train_batch_size=8,
+    per_device_eval_batch_size=8,
+    warmup_ratio=0.08,
+    weight_decay=1e-4,
+    logging_dir="./logs/ar_full",
+    logging_steps=500,
     save_steps=5000,
     save_total_limit=2,
     evaluation_strategy="steps",
     eval_steps=5000,
     predict_with_generate=True,
     fp16=True,
+    gradient_accumulation_steps=2,
     learning_rate=1e-4,
-    gradient_accumulation_steps=4,
-	generation_max_length=1024
+    generation_max_length=1024,
+    report_to="wandb",
 )
-
-
-def get_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", type=str, default="lca0503/soxdata_small_encodec")
-    parser.add_argument("--train_splits", type=str, nargs="+", default=["train"])
-    parser.add_argument("--eval_splits", type=str, nargs="+", default=["validation"])
-    parser.add_argument("--model", type=str, default="BartForConditionalGeneration")
-    parser.add_argument("--model_card", type=str, default="voidful/bart-base-unit")
-
-    args = parser.parse_args()
-    return args
 
 
 def pad_sequences(sequences, max_length, padding_value):
@@ -53,10 +43,7 @@ def get_attention_mask(seq_len, max_length):
 
 
 def filter_examples(example):
-    return len(example[f"src_encodec_0"]) <= 800 #\
-        # and len(example[f"tgt_encodec_0"]) <= 1000 \
-        # and len((example[f"transcription"] + example[f"instruction"]).split(' ')) + \
-        #     len(example[f"src_encodec_0"]) <= 1000
+    return len(example[f"src_encodec_0"]) <= 800
 
 
 def get_encodec_units(data, b, split='src'):
@@ -69,8 +56,7 @@ def get_encodec_units(data, b, split='src'):
     return encodec_units
 
 
-def process_data_to_model_inputs(batch, args, tokenizer):
-
+def process_data_to_model_inputs(batch, tokenizer):
     input_ids = []
     attention_masks = []
     decoder_input_ids = []
@@ -125,21 +111,23 @@ def process_data_to_model_inputs(batch, args, tokenizer):
 def get_dataset(tokenizer, args):
     train_dataset = load_dataset(args.dataset, "train", split='+'.join(args.train_splits))
     eval_dataset = load_dataset(args.dataset, "eval", split='+'.join(args.eval_splits))
+    
     train_dataset = train_dataset.filter(filter_examples)
     eval_dataset = eval_dataset.filter(filter_examples)
+
     train_dataset = train_dataset.map(
         process_data_to_model_inputs,
         remove_columns=train_dataset.column_names,
         batched=True,
         batch_size=TRAIN_ARGS.per_device_train_batch_size,
-        fn_kwargs={"args": args, "tokenizer": tokenizer}
+        fn_kwargs={"tokenizer": tokenizer}
     )
     eval_dataset = eval_dataset.map(
         process_data_to_model_inputs,
         remove_columns=eval_dataset.column_names,
         batched=True,
         batch_size=TRAIN_ARGS.per_device_eval_batch_size,
-        fn_kwargs={"args": args, "tokenizer": tokenizer}
+        fn_kwargs={"tokenizer": tokenizer}
     )
 
     return train_dataset, eval_dataset
@@ -151,22 +139,28 @@ def compute_metrics(eval_pred, tokenizer):
     decoded_preds = tokenizer.batch_decode(predictions, skip_special_tokens=True)
     decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
 
-    # Compute WER
-    wer_value = wer(decoded_labels, decoded_preds)
+    wer_value = wer([" ".join(filter(None, i.split("v_tok_"))) for i in decoded_labels],
+                    [" ".join(filter(None, i.split("v_tok_"))) for i in decoded_preds])
+    
     print("pred_result")
     print("=================================")
     for i in range(10):
-        print(decoded_labels[i], " ///// ", decoded_preds[i])
+        print("target:", labels[i])
+        print("pred:", predictions[i])
+        print("-----------------")
     print("=================================")
+    
     return {"wer": wer_value}
 
 
 def main(args):
-    tokenizer = AutoTokenizer.from_pretrained(args.model_card)
-    model = eval(args.model).from_pretrained(args.model_card)
-    data_collator = DataCollatorForSeq2Seq(tokenizer, model)
-    train_dataset, eval_dataset = get_dataset(tokenizer, args)
+    model = BartForConditionalGeneration.from_pretrained(args.model_name)
 
+    tokenizer = AutoTokenizer.from_pretrained(args.model_name)
+    data_collator = DataCollatorForSeq2Seq(tokenizer, model=model)
+    
+    train_dataset, eval_dataset = get_dataset(tokenizer, args)
+    
     trainer = Seq2SeqTrainer(
         model=model,
         args=TRAIN_ARGS,
@@ -179,7 +173,19 @@ def main(args):
 
     trainer.train()
 
+    
+def parse_args() -> Namespace:
+    parser = ArgumentParser()
+    parser.add_argument("-d", "--dataset", type=str, default="lca0503/soxdata_small_encodec")
+    parser.add_argument("-t", "--train_splits", type=str, nargs="+", default=["train"])
+    parser.add_argument("-e", "--eval_splits", type=str, nargs="+", default=["validation"])
+    parser.add_argument("-m", "--model_name", type=str, default="voidful/bart-base-unit")
 
+    args = parser.parse_args()
+    
+    return args
+
+    
 if __name__ == '__main__':
-    args = get_args()
+    args = parse_args()
     main(args)
