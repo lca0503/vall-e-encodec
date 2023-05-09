@@ -42,7 +42,7 @@ def filter_examples(example):
     return len(example[f"encodec_0"]) <= 1000
 
 
-def process_data_to_model_inputs(batch):
+def process_data_to_model_inputs(batch, tokenizer):
     input_ids = []
     attention_mask = []
     decoder_input_ids = []
@@ -73,7 +73,7 @@ def process_data_to_model_inputs(batch):
     }
 
 
-def compute_metrics(eval_pred):
+def compute_metrics(eval_pred, tokenizer):
     predictions, labels = eval_pred
     labels = [i[i != -100] for i in labels]
     decoded_preds = tokenizer.batch_decode(predictions, skip_special_tokens=True)
@@ -105,14 +105,14 @@ def get_dataset(tokenizer, args):
         remove_columns=train_dataset.column_names,
         batched=True,
         batch_size=TRAIN_ARGS.per_device_train_batch_size,
-        fn_kwargs={"args": args, "tokenizer": tokenizer}
+        fn_kwargs={"tokenizer": tokenizer}
     )
     valid_dataset = valid_dataset.map(
         process_data_to_model_inputs,
         remove_columns=valid_dataset.column_names,
         batched=True,
         batch_size=TRAIN_ARGS.per_device_eval_batch_size,
-        fn_kwargs={"args": args, "tokenizer": tokenizer}
+        fn_kwargs={"tokenizer": tokenizer}
     )
 
     return train_dataset, valid_dataset
@@ -124,18 +124,18 @@ def main(args):
     tokenizer = AutoTokenizer.from_pretrained(args.model_name) 
     data_collator = DataCollatorForSeq2Seq(tokenizer, model=model)
     
-    train_dataset, eval_dataset = get_dataset(tokenizer, args)
+    train_dataset, valid_dataset = get_dataset(tokenizer, args)
     
     trainer = Seq2SeqTrainer(
         model=model,
-        args=training_args,
+        args=TRAIN_ARGS,
         train_dataset=train_dataset,
         eval_dataset=valid_dataset,
         data_collator=data_collator,
         tokenizer=tokenizer,
-        compute_metrics=compute_metrics,
+        compute_metrics=lambda preds : compute_metrics(preds, tokenizer),
     )
-    
+
     trainer.train()
 
     
@@ -149,6 +149,7 @@ def parse_args() -> Namespace:
     parser.add_argument("-m", "--model_name", type=str, default="voidful/bart-base-unit")
 
     args = parser.parse_args()
+    
     return args
     
 
