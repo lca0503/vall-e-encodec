@@ -4,6 +4,7 @@ from jiwer import wer
 from transformers import (AutoTokenizer, BartForConditionalGeneration,
                           DataCollatorForSeq2Seq, GenerationConfig,
                           Seq2SeqTrainer, Seq2SeqTrainingArguments)
+from argparse import ArgumentParser, Namespace
 
 
 wandb.init(project="encodec_tts", 
@@ -138,19 +139,19 @@ def main(args):
     trainer.train()
 
     
-def get_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--dataset", type=str, default="voidful/librispeech_encodec")
-    parser.add_argument("--train_splits", type=str, nargs="+",
+def parse_args() -> Namespace:
+    parser = ArgumentParser()
+    parser.add_argument("-d", "--dataset", type=str, default="voidful/librispeech_encodec")
+    parser.add_argument("-t", "--train_splits", type=str, nargs="+",
                         default=["trainclean100", "trainclean360", "trainother500"])
-    parser.add_argument("--valid_splits", type=str, nargs="+",
+    parser.add_argument("-v", "--valid_splits", type=str, nargs="+",
                         default=["validationclean"])
-    parser.add_argument("--model_name", type=str, default="voidful/bart-base-unit")
+    parser.add_argument("-m", "--model_name", type=str, default="voidful/bart-base-unit")
 
     args = parser.parse_args()
     return args
     
 
 if __name__ == '__main__':
-    args = get_args()
+    args = parse_args()
     main(args)
