@@ -1,11 +1,12 @@
-import wandb
+from argparse import ArgumentParser, Namespace
+
 from datasets import load_dataset
 from jiwer import wer
 from transformers import (AutoTokenizer, BartForConditionalGeneration,
-                          DataCollatorForSeq2Seq, GenerationConfig,
-                          Seq2SeqTrainer, Seq2SeqTrainingArguments)
-from argparse import ArgumentParser, Namespace
+                          DataCollatorForSeq2Seq, Seq2SeqTrainer,
+                          Seq2SeqTrainingArguments)
 
+import wandb
 
 wandb.init(project="encodec_tts", 
            name="bart-base-ar",
