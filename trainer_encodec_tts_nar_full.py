@@ -47,9 +47,9 @@ def filter_examples(example):
     return len(example[f"src_encodec_0"]) <= 700
 
 
-def get_encodec_units(data, b, split='src'):
+def get_encodec_units(data, b, split="src"):
     encodec_units = [
-        [f"v_tok_{u + l * 1024}" for u in data[f'{split}_encodec_{l}'][b]]
+        [f"v_tok_{u + l * 1024}" for u in data[f"{split}_encodec_{l}"][b]]
         for l in range(8)
     ]
     for e in encodec_units:
@@ -70,14 +70,14 @@ def process_data_to_model_inputs(batch, args, tokenizer):
     bos_token_id = tokenizer.bos_token_id
     eos_token_id = tokenizer.eos_token_id
     sep_token_id = tokenizer.sep_token_id
+    pad_token_id = tokenizer.pad_token_id
 
-
-    for b in range(len(batch['instruction'])):
+    for b in range(len(batch["instruction"])):
         # encoder input
-        instruction_ids = tokenizer(batch['instruction'][b])['input_ids'][1 : -1]
-        transcription_ids = tokenizer(batch['transcription'][b])['input_ids'][1 : -1]
+        instruction_ids = tokenizer(batch["instruction"][b])["input_ids"][1 : -1]
+        transcription_ids = tokenizer(batch["transcription"][b])["input_ids"][1 : -1]
         encodec_layer0 = tokenizer.convert_tokens_to_ids(
-                [f"v_tok_{u}" for u in batch[f'src_encodec_{0}'][b]])
+                [f"v_tok_{u}" for u in batch[f"src_encodec_{0}"][b]])
         encoder_input = [bos_token_id] + \
                         instruction_ids + [sep_token_id] + \
                         transcription_ids + [sep_token_id] + \
@@ -88,9 +88,9 @@ def process_data_to_model_inputs(batch, args, tokenizer):
         for l in nar_layers:
             # decoder input
             decoder_input_id = tokenizer.convert_tokens_to_ids(
-                [f"v_tok_{u + (l - 1) * 1024}" for u in batch[f'tgt_encodec_{l - 1}'][b]])
+                [f"v_tok_{u + (l - 1) * 1024}" for u in batch[f"tgt_encodec_{l - 1}"][b]])
             label = tokenizer.convert_tokens_to_ids(
-                [f"v_tok_{u + l * 1024}" for u in batch[f'tgt_encodec_{l}'][b]])
+                [f"v_tok_{u + l * 1024}" for u in batch[f"tgt_encodec_{l}"][b]])
             
             input_ids.append(encoder_input)
             attention_masks.append(attention_mask)
@@ -98,11 +98,11 @@ def process_data_to_model_inputs(batch, args, tokenizer):
             labels.append(label)
 
     input_ids = pad_sequences(input_ids, max_length=max_length,
-                              padding_value=tokenizer.pad_token_id)
+                              padding_value=pad_token_id)
     decoder_input_ids = pad_sequences(decoder_input_ids, max_length=max_length,
-                                      padding_value=tokenizer.pad_token_id)
+                                      padding_value=pad_token_id)
     labels = pad_sequences(labels, max_length=max_length,
-                           padding_value=tokenizer.pad_token_id)
+                           padding_value=pad_token_id)
 
     return {
         "input_ids": input_ids,
@@ -113,8 +113,8 @@ def process_data_to_model_inputs(batch, args, tokenizer):
 
 
 def get_dataset(tokenizer, args):
-    train_dataset = load_dataset(args.dataset, "train", split='+'.join(args.train_splits))
-    eval_dataset = load_dataset(args.dataset, "eval", split='+'.join(args.eval_splits))
+    train_dataset = load_dataset(args.dataset, "train", split="+".join(args.train_splits))
+    eval_dataset = load_dataset(args.dataset, "eval", split="+".join(args.eval_splits))
     
     train_dataset = train_dataset.filter(filter_examples)
     eval_dataset = eval_dataset.filter(filter_examples)
@@ -193,6 +193,6 @@ def parse_args() -> Namespace:
     return args
 
     
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = parse_args()
     main(args)

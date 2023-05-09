@@ -49,21 +49,25 @@ def process_data_to_model_inputs(batch, tokenizer):
     decoder_input_ids = []
     labels = []
 
-    max_length = 1023  # You can set this to a suitable value based on your dataset
-
-    for b in range(len(batch['text'])):
-        data = tokenizer(batch["text"][b], padding='max_length', truncation=True, max_length=max_length)
+    max_length = 1023  
+    bos_token_id = tokenizer.bos_token_id
+    eos_token_id = tokenizer.eos_token_id
+    sep_token_id = tokenizer.sep_token_id
+    pad_token_id = tokenizer.pad_token_id
+    
+    for b in range(len(batch["text"])):
+        data = tokenizer(batch["text"][b], padding="max_length", truncation=True, max_length=max_length)
         for i in range(1, 8):
             decoder_input_id = tokenizer.convert_tokens_to_ids(
-                [f"v_tok_{u + (i - 1) * 1000}" for u in batch[f'encodec_{i - 1}'][b]])
-            label = tokenizer.convert_tokens_to_ids([f"v_tok_{u + i * 1000}" for u in batch[f'encodec_{i}'][b]])
-            input_ids.append(data['input_ids'])
-            attention_mask.append(data['attention_mask'])
+                [f"v_tok_{u + (i - 1) * 1000}" for u in batch[f"encodec_{i - 1}"][b]])
+            label = tokenizer.convert_tokens_to_ids([f"v_tok_{u + i * 1000}" for u in batch[f"encodec_{i}"][b]])
+            input_ids.append(data["input_ids"])
+            attention_mask.append(data["attention_mask"])
             decoder_input_ids.append(decoder_input_id)
             labels.append(label)
 
     # Pad decoder_input_ids and labels
-    decoder_input_ids = pad_sequences(decoder_input_ids, max_length=max_length, padding_value=tokenizer.pad_token_id)
+    decoder_input_ids = pad_sequences(decoder_input_ids, max_length=max_length, padding_value=pad_token_id)
     labels = pad_sequences(labels, max_length=max_length, padding_value=-100)
 
     return {
@@ -97,8 +101,8 @@ def compute_metrics(eval_pred, tokenizer):
 
 
 def get_dataset(tokenizer, args):
-    train_dataset = load_dataset(args.dataset, "train", split='+'.join(args.train_splits))
-    eval_dataset = load_dataset(args.dataset, "eval", split='+'.join(args.eval_splits))
+    train_dataset = load_dataset(args.dataset, "train", split="+".join(args.train_splits))
+    eval_dataset = load_dataset(args.dataset, "eval", split="+".join(args.eval_splits))
 
     train_dataset = train_dataset.filter(filter_examples)
     eval_dataset = eval_dataset.filter(filter_examples)
@@ -156,6 +160,6 @@ def parse_args() -> Namespace:
     return args
     
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     args = parse_args()
     main(args)
