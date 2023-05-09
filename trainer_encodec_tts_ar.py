@@ -78,26 +78,6 @@ def process_data_to_model_inputs(batch, tokenizer):
     }
 
 
-def compute_metrics(eval_pred, tokenizer):
-    predictions, labels = eval_pred
-    labels = [i[i != -100] for i in labels]
-    decoded_preds = tokenizer.batch_decode(predictions, skip_special_tokens=True)
-    decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
-
-    wer_value = wer([" ".join(filter(None, i.split("v_tok_"))) for i in decoded_labels],
-                    [" ".join(filter(None, i.split("v_tok_"))) for i in decoded_preds])
-    
-    print("pred_result")
-    print("=================================")
-    for i in range(10):
-        print("target:", labels[i])
-        print("pred:", predictions[i])
-        print("-----------------")
-    print("=================================")
-    
-    return {"wer": wer_value}
-
-
 def get_dataset(tokenizer, args):
     train_dataset = load_dataset(args.dataset, "train", split="+".join(args.train_splits))
     eval_dataset = load_dataset(args.dataset, "eval", split="+".join(args.eval_splits))
@@ -121,6 +101,27 @@ def get_dataset(tokenizer, args):
     )
 
     return train_dataset, eval_dataset
+
+
+def compute_metrics(eval_pred, tokenizer):
+    predictions, labels = eval_pred
+    labels = [i[i != -100] for i in labels]
+    decoded_preds = tokenizer.batch_decode(predictions, skip_special_tokens=True)
+    decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
+
+    wer_value = wer([" ".join(filter(None, i.split("v_tok_"))) for i in decoded_labels],
+                    [" ".join(filter(None, i.split("v_tok_"))) for i in decoded_preds])
+    
+    print("pred_result")
+    print("=================================")
+    for i in range(10):
+        print("target:", labels[i])
+        print("pred:", predictions[i])
+        print("-----------------")
+    print("=================================")
+    
+    return {"wer": wer_value}
+
 
 
 def main(args):

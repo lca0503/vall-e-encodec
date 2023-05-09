@@ -1,5 +1,6 @@
 from argparse import ArgumentParser, Namespace
 
+import torch
 from datasets import load_dataset
 from jiwer import wer
 from transformers import (AutoTokenizer, DataCollatorForSeq2Seq,
@@ -29,7 +30,6 @@ TRAIN_ARGS = Seq2SeqTrainingArguments(
     predict_with_generate=False,
     fp16=True,
     gradient_accumulation_steps=2,
-    #eval_accumulation_steps=2,
     learning_rate=1e-4,
     report_to="wandb",
 )
@@ -78,28 +78,6 @@ def process_data_to_model_inputs(batch, tokenizer):
     }
 
 
-def compute_metrics(eval_pred, tokenizer):
-    logits, labels = eval_pred
-    predictions = torch.max(logits, axis=-1).indicies
-    del logits
-    labels = [i[i != -100] for i in labels]
-    decoded_preds = tokenizer.batch_decode(predictions, skip_special_tokens=True)
-    decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
-
-    wer_value = wer([" ".join(filter(None, i.split("v_tok_"))) for i in decoded_labels],
-                    [" ".join(filter(None, i.split("v_tok_"))) for i in decoded_preds])
-    
-    print("pred_result")
-    print("=================================")
-    for i in range(10):
-        print("target:", labels[i])
-        print("pred:", predictions[i])
-        print("-----------------")
-    print("=================================")
-    
-    return {"wer": wer_value}
-
-
 def get_dataset(tokenizer, args):
     train_dataset = load_dataset(args.dataset, "train", split="+".join(args.train_splits))
     eval_dataset = load_dataset(args.dataset, "eval", split="+".join(args.eval_splits))
@@ -125,6 +103,33 @@ def get_dataset(tokenizer, args):
     return train_dataset, eval_dataset
 
 
+def preprocess_logits_for_metrics(ret, labels):
+    logits, encoder_last_hidden_state = ret
+    predictions = torch.argmax(logits, axis=-1)
+
+    return predictions
+
+
+def compute_metrics(eval_pred, tokenizer):
+    predictions, labels = eval_pred
+    labels = [i[i != -100] for i in labels]
+    decoded_preds = tokenizer.batch_decode(predictions, skip_special_tokens=True)
+    decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
+
+    wer_value = wer([" ".join(filter(None, i.split("v_tok_"))) for i in decoded_labels],
+                    [" ".join(filter(None, i.split("v_tok_"))) for i in decoded_preds])
+    
+    print("pred_result")
+    print("=================================")
+    for i in range(10):
+        print("target:", labels[i])
+        print("pred:", predictions[i])
+        print("-----------------")
+    print("=================================")
+    
+    return {"wer": wer_value}
+
+
 def main(args):
     model = NARBartForConditionalGeneration.from_pretrained(args.model_name)
 
@@ -140,11 +145,11 @@ def main(args):
         eval_dataset=eval_dataset,
         data_collator=data_collator,
         tokenizer=tokenizer,
-        #compute_metrics=lambda preds : compute_metrics(preds, tokenizer),
+        compute_metrics=lambda preds : compute_metrics(preds, tokenizer),
+        preprocess_logits_for_metrics=preprocess_logits_for_metrics,
     )
 
     trainer.train()
-    #trainer.evaluate()
 
 
 def parse_args() -> Namespace:
