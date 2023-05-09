@@ -15,8 +15,8 @@
 """ PyTorch BART model."""
 
 from transformers.models.bart.modeling_bart import *
-from encodec_bart_model import BartEncodecEncoder
-from nar_bart_model import NARBartDecoder
+from .encodec_bart_model import BartEncodecEncoder
+from .nar_bart_model import NARBartDecoder
 
 
 class NARBartEncodecModel(BartModel):
