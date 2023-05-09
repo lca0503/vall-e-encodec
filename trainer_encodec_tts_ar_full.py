@@ -12,7 +12,7 @@ from encodec_model.nar_encodec_bart_model import NARBartEncodecForConditionalGen
 
 
 TRAIN_ARGS = Seq2SeqTrainingArguments(
-    output_dir="./training_output/ar_full",
+    output_dir="./training_output/ar_full_epoch20",
     num_train_epochs=20,
     per_device_train_batch_size=2,
     per_device_eval_batch_size=2,
@@ -20,14 +20,15 @@ TRAIN_ARGS = Seq2SeqTrainingArguments(
     weight_decay=0.01,
     logging_dir="./logs",
     logging_steps=10,
-    save_steps=1000,
+    save_steps=5000,
     save_total_limit=2,
     evaluation_strategy="steps",
-    eval_steps=100000,
+    eval_steps=5000,
     predict_with_generate=True,
     fp16=True,
     learning_rate=1e-4,
-    gradient_accumulation_steps=4
+    gradient_accumulation_steps=4,
+	generation_max_length=1024
 )
 
 
@@ -52,7 +53,7 @@ def get_attention_mask(seq_len, max_length):
 
 
 def filter_examples(example):
-    return len(example[f"src_encodec_0"]) <= 700 #\
+    return len(example[f"src_encodec_0"]) <= 800 #\
         # and len(example[f"tgt_encodec_0"]) <= 1000 \
         # and len((example[f"transcription"] + example[f"instruction"]).split(' ')) + \
         #     len(example[f"src_encodec_0"]) <= 1000
@@ -141,7 +142,7 @@ def get_dataset(tokenizer, args):
         fn_kwargs={"args": args, "tokenizer": tokenizer}
     )
 
-    return train_dataset, None
+    return train_dataset, eval_dataset
 
 
 def compute_metrics(eval_pred, tokenizer):
