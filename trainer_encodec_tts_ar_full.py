@@ -182,8 +182,7 @@ def parse_args() -> Namespace:
     parser.add_argument("-e", "--eval_splits", type=str, nargs="+", default=["validation"])
     parser.add_argument("-m", "--model_name", type=str, default="voidful/bart-base-unit")
 
-    args = parser.parse_args()
-    
+    args = parser.parse_args()    
     return args
 
     

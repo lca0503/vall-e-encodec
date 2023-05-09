@@ -149,8 +149,7 @@ def parse_args() -> Namespace:
                         default=["validationclean"])
     parser.add_argument("-m", "--model_name", type=str, default="voidful/bart-base-unit")
 
-    args = parser.parse_args()
-    
+    args = parser.parse_args()    
     return args
     
 

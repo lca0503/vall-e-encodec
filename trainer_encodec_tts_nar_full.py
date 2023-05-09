@@ -189,8 +189,7 @@ def parse_args() -> Namespace:
     parser.add_argument("-m", "--model_name", type=str, default="voidful/bart-base-unit")
     parser.add_argument("-n", "--nar_layers", type=int, nargs="+", default=list(range(1, 8)))
 
-    args = parser.parse_args()
-    
+    args = parser.parse_args()    
     return args
 
     
