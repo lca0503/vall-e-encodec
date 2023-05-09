@@ -1,4 +1,4 @@
-import argparse
+from argparse import ArgumentParser, Namespace
 import json
 
 import torch
@@ -7,59 +7,6 @@ from tqdm import tqdm
 from transformers import AutoTokenizer, BartForConditionalGeneration
 
 from encodec_model.nar_bart_model import NARBartForConditionalGeneration
-
-
-def get_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--cascade_ar_nar",
-        action="store_true"
-    )
-    parser.add_argument(
-        "--use_ar_model",
-        action="store_true"
-    )
-    parser.add_argument(
-        "--use_nar_model",
-        action="store_true"
-    )
-    parser.add_argument(
-        "--ar_model",
-        type=str,
-        default="BartForConditionalGeneration"
-    )
-    parser.add_argument(
-        "--nar_model",
-        type=str,
-        default="NARBartForConditionalGeneration"
-    )
-    parser.add_argument(
-        "--ar_model_ckpt",
-        type=str,
-        default="./training_output/checkpoint-60000"
-    )
-    parser.add_argument(
-        "--nar_model_ckpt",
-        type=str,
-        default="./training_output/checkpoint-60000"
-    )
-    parser.add_argument(
-        "--use_nar_gt",
-        action="store_true"
-    )
-    parser.add_argument(
-        "--result_json",
-        type=str,
-        default="./result.json"
-    )
-    parser.add_argument(
-        "--device",
-        type=str,
-        default="cuda"
-    )
-    
-    args = parser.parse_args()
-    return args
 
 
 def inference_ar(ar_model, ar_tokenizer, dataset, device, batch=1):
@@ -215,6 +162,60 @@ def main(args):
         write_decoder_output_ids(ar_decoder_output_ids, nar_decoder_output_ids, args.result_json)
 
 
+def parse_args() -> Namespace:
+    parser = ArgumentParser()
+    parser.add_argument(
+        "--cascade_ar_nar",
+        action="store_true"
+    )
+    parser.add_argument(
+        "--use_ar_model",
+        action="store_true"
+    )
+    parser.add_argument(
+        "--use_nar_model",
+        action="store_true"
+    )
+    parser.add_argument(
+        "--ar_model",
+        type=str,
+        default="BartForConditionalGeneration"
+    )
+    parser.add_argument(
+        "--nar_model",
+        type=str,
+        default="NARBartForConditionalGeneration"
+    )
+    parser.add_argument(
+        "--ar_model_ckpt",
+        type=str,
+        default="./training_output/checkpoint-60000"
+    )
+    parser.add_argument(
+        "--nar_model_ckpt",
+        type=str,
+        default="./training_output/checkpoint-60000"
+    )
+    parser.add_argument(
+        "--use_nar_gt",
+        action="store_true"
+    )
+    parser.add_argument(
+        "--result_json",
+        type=str,
+        default="./result.json"
+    )
+    parser.add_argument(
+        "--device",
+        type=str,
+        default="cuda"
+    )
+    
+    args = parser.parse_args()
+    
+    return args
+
+        
 if __name__ == '__main__':
-    args = get_args()
+    args = parse_args()
     main(args)
