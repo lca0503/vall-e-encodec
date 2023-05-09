@@ -1,15 +1,18 @@
-import random
-from typing import Optional, Tuple, Union, List
-
 import math
+import random
+from typing import List, Optional, Tuple, Union
+
 import torch
+import torch.nn.functional as F
 from torch import nn
 from torch.nn import CrossEntropyLoss
-import torch.nn.functional as F
-from transformers import BartForConditionalGeneration, BartConfig
-from transformers.modeling_outputs import Seq2SeqLMOutput, BaseModelOutput
-from transformers.models.bart.modeling_bart import shift_tokens_right, BartModel, BartDecoder, BartEncoder, \
-    _expand_mask, BartEncoderLayer, BartLearnedPositionalEmbedding
+from transformers import BartConfig, BartForConditionalGeneration
+from transformers.modeling_outputs import BaseModelOutput, Seq2SeqLMOutput
+from transformers.models.bart.modeling_bart import (BartDecoder, BartEncoder,
+                                                    BartEncoderLayer,
+                                                    BartLearnedPositionalEmbedding,
+                                                    BartModel, _expand_mask,
+                                                    shift_tokens_right)
 
 
 class BartEncodecEncoder(BartEncoder):

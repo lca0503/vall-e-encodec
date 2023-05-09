@@ -1,17 +1,24 @@
 import copy
+import math
 from typing import Any
 
-import math
 import torch
 from torch import nn
 from torch.utils.checkpoint import checkpoint
-from transformers import LongT5ForConditionalGeneration, LongT5Config
-from transformers.modeling_outputs import BaseModelOutputWithPastAndCrossAttentions
-from transformers.models.longt5.modeling_longt5 import LongT5PreTrainedModel, LongT5LayerNorm, \
-    _get_local_attention_mask, \
-    LongT5LayerFF, _concatenate_3_blocks, _split_into_blocks, _create_global_aggregates, \
-    _make_side_relative_position_ids, _make_global_fixed_block_ids
-from transformers.pytorch_utils import find_pruneable_heads_and_indices, prune_linear_layer
+from transformers import LongT5Config, LongT5ForConditionalGeneration
+from transformers.modeling_outputs import \
+    BaseModelOutputWithPastAndCrossAttentions
+from transformers.models.longt5.modeling_longt5 import (LongT5LayerFF,
+                                                        LongT5LayerNorm,
+                                                        LongT5PreTrainedModel,
+                                                        _concatenate_3_blocks,
+                                                        _create_global_aggregates,
+                                                        _get_local_attention_mask,
+                                                        _make_global_fixed_block_ids,
+                                                        _make_side_relative_position_ids,
+                                                        _split_into_blocks)
+from transformers.pytorch_utils import (find_pruneable_heads_and_indices,
+                                        prune_linear_layer)
 
 
 # Copied from transformers.models.t5.modeling_t5.T5Attention with T5->LongT5
