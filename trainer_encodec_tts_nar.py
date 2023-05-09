@@ -1,51 +1,49 @@
-import wandb
+from argparse import ArgumentParser, Namespace
+
 from datasets import load_dataset
 from jiwer import wer
-from transformers import (
-    AutoTokenizer,
-    DataCollatorForSeq2Seq,
-    Seq2SeqTrainer,
-    Seq2SeqTrainingArguments
-)
+from transformers import (AutoTokenizer, DataCollatorForSeq2Seq,
+                          Seq2SeqTrainer, Seq2SeqTrainingArguments)
+
+import wandb
 from encodec_model.nar_bart_model import NARBartForConditionalGeneration
 
+wandb.init(project="encodec_tts", 
+           name="bart-base-nar",
+)
 
-name = 'libri960_nar_wr0.08_lr1e-4'
-wandb.init(name)
 
-# Load dataset and tokenizer
-train_dataset = load_dataset("voidful/librispeech_encodec", split="trainclean100+trainclean360+trainother500")
-valid_dataset = load_dataset("voidful/librispeech_encodec", split="validationclean")
-tokenizer = AutoTokenizer.from_pretrained("voidful/bart-base-unit")
-model = NARBartForConditionalGeneration.from_pretrained("voidful/bart-base-unit")
-
-# Set training parameters
-training_args = Seq2SeqTrainingArguments(
-    output_dir="./training_output",
+TRAIN_ARGS = Seq2SeqTrainingArguments(
+    output_dir="./training_output/nar",
     num_train_epochs=2,
     per_device_train_batch_size=8,
     per_device_eval_batch_size=8,
     warmup_ratio=0.08,
     weight_decay=1e-4,
-    logging_dir="./logs",
+    logging_dir="./logs/nar",
     logging_steps=500,
     save_steps=10000,
     save_total_limit=2,
     evaluation_strategy="steps",
     eval_steps=10000,
+    predict_with_generate=False,
     fp16=True,
     gradient_accumulation_steps=2,
+    #eval_accumulation_steps=2,
     learning_rate=1e-4,
+    report_to="wandb",
 )
 
-# Define a data collator to handle tokenization
-data_collator = DataCollatorForSeq2Seq(tokenizer, model=model)
 
 def pad_sequences(sequences, max_length, padding_value):
     return [sequence + [padding_value] * (max_length - len(sequence)) for sequence in sequences]
 
-# Define training and validation functions
-def process_data_to_model_inputs(batch):
+
+def filter_examples(example):
+    return len(example[f"encodec_0"]) <= 1000
+
+
+def process_data_to_model_inputs(batch, tokenizer):
     input_ids = []
     attention_mask = []
     decoder_input_ids = []
@@ -75,34 +73,18 @@ def process_data_to_model_inputs(batch):
         "labels": labels
     }
 
-def filter_examples(example):
-    return len(example[f"encodec_0"]) <= 1000
 
-train_dataset = train_dataset.filter(filter_examples)
-valid_dataset = valid_dataset.filter(filter_examples)
-
-train_dataset = train_dataset.map(
-    process_data_to_model_inputs,
-    remove_columns=train_dataset.column_names,
-    batched=True,
-    batch_size=training_args.per_device_train_batch_size
-)
-valid_dataset = valid_dataset.map(process_data_to_model_inputs,
-                                  remove_columns=valid_dataset.column_names,
-                                  batched=True,
-                                  batch_size=training_args.per_device_eval_batch_size
-                                  )
-
-def compute_metrics(eval_pred):
+def compute_metrics(eval_pred, tokenizer):
     logits, labels = eval_pred
     predictions = torch.max(logits, axis=-1).indicies
+    del logits
     labels = [i[i != -100] for i in labels]
     decoded_preds = tokenizer.batch_decode(predictions, skip_special_tokens=True)
     decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
 
-    # Compute WER
     wer_value = wer([" ".join(filter(None, i.split("v_tok_"))) for i in decoded_labels],
                     [" ".join(filter(None, i.split("v_tok_"))) for i in decoded_preds])
+    
     print("pred_result")
     print("=================================")
     for i in range(10):
@@ -110,19 +92,71 @@ def compute_metrics(eval_pred):
         print("pred:", predictions[i])
         print("-----------------")
     print("=================================")
+    
     return {"wer": wer_value}
 
-# Create the trainer
-trainer = Seq2SeqTrainer(
-    model=model,
-    args=training_args,
-    train_dataset=train_dataset,
-    eval_dataset=valid_dataset,
-    data_collator=data_collator,
-    tokenizer=tokenizer,
-    #compute_metrics=compute_metrics,
-)
 
-# Start training
-trainer.train()
-trainer.evaluate()
+def get_dataset(tokenizer, args):
+    train_dataset = load_dataset(args.dataset, "train", split='+'.join(args.train_splits))
+    valid_dataset = load_dataset(args.dataset, "valid", split='+'.join(args.valid_splits))
+
+    train_dataset = train_dataset.filter(filter_examples)
+    valid_dataset = valid_dataset.filter(filter_examples)
+
+    train_dataset = train_dataset.map(
+        process_data_to_model_inputs,
+        remove_columns=train_dataset.column_names,
+        batched=True,
+        batch_size=TRAIN_ARGS.per_device_train_batch_size,
+        fn_kwargs={"tokenizer": tokenizer}
+    )
+    valid_dataset = valid_dataset.map(
+        process_data_to_model_inputs,
+        remove_columns=valid_dataset.column_names,
+        batched=True,
+        batch_size=TRAIN_ARGS.per_device_eval_batch_size,
+        fn_kwargs={"tokenizer": tokenizer}
+    )
+
+    return train_dataset, valid_dataset
+
+
+def main(args):
+    model = NARBartForConditionalGeneration.from_pretrained(args.model_name)
+
+    tokenizer = AutoTokenizer.from_pretrained(args.model_name) 
+    data_collator = DataCollatorForSeq2Seq(tokenizer, model=model)
+    
+    train_dataset, valid_dataset = get_dataset(tokenizer, args)
+    
+    trainer = Seq2SeqTrainer(
+        model=model,
+        args=TRAIN_ARGS,
+        train_dataset=train_dataset,
+        eval_dataset=valid_dataset,
+        data_collator=data_collator,
+        tokenizer=tokenizer,
+        #compute_metrics=lambda preds : compute_metrics(preds, tokenizer),
+    )
+
+    trainer.train()
+    #trainer.evaluate()
+
+
+def parse_args() -> Namespace:
+    parser = ArgumentParser()
+    parser.add_argument("-d", "--dataset", type=str, default="voidful/librispeech_encodec")
+    parser.add_argument("-t", "--train_splits", type=str, nargs="+",
+                        default=["trainclean100", "trainclean360", "trainother500"])
+    parser.add_argument("-v", "--valid_splits", type=str, nargs="+",
+                        default=["validationclean"])
+    parser.add_argument("-m", "--model_name", type=str, default="voidful/bart-base-unit")
+
+    args = parser.parse_args()
+    
+    return args
+    
+
+if __name__ == '__main__':
+    args = parse_args()
+    main(args)
