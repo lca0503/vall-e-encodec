@@ -19,7 +19,7 @@ def main(args):
     for command_path in todo:
         with open(command_path, "r") as f:
             line = f.readline()
-            line = line.split('\t')
+            line = line.split("\t")
             source_speech_path = line[0]
             target_speech_path = line[1]
             effect = line[2]
@@ -39,7 +39,7 @@ def main(args):
             else:
                 continue
             
-        file_idx = os.path.basename(source_speech_path).split('.')[0]
+        file_idx = os.path.basename(source_speech_path).split(".")[0]
         with open(f"{output_dir}/{file_idx}.txt", "w") as f:
             f.write(instruction)        
                 

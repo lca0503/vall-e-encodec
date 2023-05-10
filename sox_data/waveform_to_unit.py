@@ -77,11 +77,11 @@ def main(args):
         print(f"[INFO] Process {split.upper()} split.")
 
         # Setup dataset
-        dataset = {'file_id': [], 'instruction': [], 'transcription': [],}
+        dataset = {"file_id": [], "instruction": [], "transcription": [],}
         for i in range(8):
-            dataset[f'src_encodec_{i}'] = []
+            dataset[f"src_encodec_{i}"] = []
         for i in range(8):
-            dataset[f'tgt_encodec_{i}'] = []
+            dataset[f"tgt_encodec_{i}"] = []
         print(dataset)
             
         instruction_dir = f"{args.data_dir}/{split}/instruction"
@@ -110,12 +110,12 @@ def main(args):
             src_code = encodec_24khz_8codebook(src_path)
             tgt_code = encodec_24khz_8codebook(tgt_path)
             
-            dataset['file_id'].append(file_id)
-            dataset['instruction'].append(instruction)
-            dataset['transcription'].append(transcription)
+            dataset["file_id"].append(file_id)
+            dataset["instruction"].append(instruction)
+            dataset["transcription"].append(transcription)
             for i in range(8):
-                dataset[f'src_encodec_{i}'].append(list(src_code[i]))
-                dataset[f'tgt_encodec_{i}'].append(list(tgt_code[i]))
+                dataset[f"src_encodec_{i}"].append(list(src_code[i]))
+                dataset[f"tgt_encodec_{i}"].append(list(tgt_code[i]))
         
         print(f"[INFO] It takes {time() - start} seconds to process all files.")
 
@@ -129,7 +129,7 @@ def main(args):
 def parse_args() -> Namespace:
     parser = ArgumentParser()
     parser.add_argument("-d", "--data_dir", type=str, default="./data/libritts_subset")
-    parser.add_argument("-s", "--splits", nargs='*', default=["train", "validation", "test"])
+    parser.add_argument("-s", "--splits", nargs="*", default=["train", "validation", "test"])
     parser.add_argument("-r", "--repo_name", type=str, default="lca0503/soxdata_small_encodec_v2")
     
     parser.add_argument("--seed", type=int, default=0)
@@ -142,6 +142,3 @@ def parse_args() -> Namespace:
 if __name__ == "__main__":
     args = parse_args()
     main(args)
-
-
-
