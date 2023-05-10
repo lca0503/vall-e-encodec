@@ -113,6 +113,8 @@ def preprocess_logits_for_metrics(ret, labels):
 def compute_metrics(eval_pred, tokenizer):
     predictions, labels = eval_pred
     labels = [i[i != -100] for i in labels]
+    predictions = [prediction[:len(label)] for prediction, label in zip(predictions, labels)]
+    
     decoded_preds = tokenizer.batch_decode(predictions, skip_special_tokens=True)
     decoded_labels = tokenizer.batch_decode(labels, skip_special_tokens=True)
 
