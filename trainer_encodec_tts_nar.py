@@ -145,7 +145,6 @@ def main(args):
         args=TRAIN_ARGS,
         train_dataset=train_dataset,
         eval_dataset=eval_dataset,
-        data_collator=data_collator,
         tokenizer=tokenizer,
         compute_metrics=lambda preds : compute_metrics(preds, tokenizer),
         preprocess_logits_for_metrics=preprocess_logits_for_metrics,
