@@ -1,12 +1,12 @@
 from argparse import ArgumentParser, Namespace
 
 import torch
+import wandb
 from datasets import load_dataset
 from jiwer import wer
-from transformers import (AutoTokenizer, DataCollatorForSeq2Seq,
-                          Seq2SeqTrainer, Seq2SeqTrainingArguments)
+from transformers import (AutoTokenizer, Seq2SeqTrainer,
+                          Seq2SeqTrainingArguments)
 
-import wandb
 from encodec_model.nar_bart_model import NARBartForConditionalGeneration
 
 wandb.init(project="encodec_tts", 
@@ -170,7 +170,6 @@ def main(args):
     model = NARBartForConditionalGeneration.from_pretrained(args.model_name)
 
     tokenizer = AutoTokenizer.from_pretrained(args.model_name) 
-    data_collator = DataCollatorForSeq2Seq(tokenizer, model=model)
     
     train_dataset, eval_dataset = get_dataset(tokenizer, args)
     
