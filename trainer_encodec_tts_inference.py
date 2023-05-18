@@ -44,6 +44,7 @@ def nar_decode(model, tokenizer, inputs, batch_code, layer=0):
 
 def ground_truth_only(tokenizer, dataset, device):
     layer_list = []
+
     for layer_i in range(8):
         encode_input = tokenizer(
             "".join([f"v_tok_{u + layer_i * 1024}" for u in dataset[f'encodec_{layer_i}'][0]]),
@@ -127,7 +128,8 @@ def main(args):
     
     if args.ground_truth_only:
         tokenizer = AutoTokenizer.from_pretrained(args.ground_truth_model_name)
-        layer_list = ground_truth_only(tokenizer, dataset, device)
+        
+        layer_list = ground_truth_only(tokenizer, dataset, device)        
         encodec_code = convert_to_encode_code(tokenizer, layer_list)    
         audio = synthesize_audio(encodec_code, device)
         sf.write(args.ground_truth_output_path, np.ravel(audio), samplerate=24000)
@@ -167,8 +169,8 @@ def parse_args() -> Namespace:
     parser.add_argument("--nar_model_only", action="store_true")
     
     parser.add_argument("--ground_truth_model_name", type=str, default="voidful/bart-base-unit")
-    parser.add_argument("--ar_checkpoint", type=str, default="/work/b08902123/SpeechChatGPT/previous_ckpt/ar/checkpoint-105000/")
-    parser.add_argument("--nar_checkpoint", type=str, default="/work/b08902123/SpeechChatGPT/previous_ckpt/nar/checkpoint-105000/")
+    parser.add_argument("--ar_checkpoint", type=str, default="../previous_ckpt/ar/checkpoint-105000/")
+    parser.add_argument("--nar_checkpoint", type=str, default="../previous_ckpt/nar/checkpoint-105000/")
 
     parser.add_argument("--ground_truth_output_path", type=str, default="ground_truth.wav")
     parser.add_argument("--cascade_output_path", type=str, default="cascade.wav")
