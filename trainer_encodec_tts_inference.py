@@ -1,220 +1,186 @@
-import json
+import random
 from argparse import ArgumentParser, Namespace
 
+import numpy as np
+import soundfile as sf
 import torch
 from datasets import load_dataset
-from tqdm import tqdm
+from encodec import EncodecModel
+from encodec_model.nar_bart_model import NARBartForConditionalGeneration
 from transformers import AutoTokenizer, BartForConditionalGeneration
 
-from encodec_model.nar_bart_model import NARBartForConditionalGeneration
+
+def set_seed(seed):
+    np.random.seed(seed)
+    random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.benchmark = False
+    torch.backends.cudnn.deterministic = True
 
 
-def inference_ar(ar_model, ar_tokenizer, dataset, device, batch=1):
-    decoder_outputs = {}
-    force_words_ids = ar_tokenizer([f"v_tok_{u}" for u in range(1024)], 
-                                  add_special_tokens=True).input_ids
-    for i in tqdm(range(len(dataset))):
-        file_id = dataset["id"][i]
-        inputs = ar_tokenizer(dataset["text"][i], padding="max_length", truncation=True,
-                              max_length=1024, return_tensors="pt").to(device)
-        output_ids = ar_model.generate(input_ids=inputs["input_ids"], num_beams=1, do_sample=False,
-                                       max_length=1024)#, force_words_ids=force_words_ids)
-        decode_output = ar_tokenizer.decode(output_ids[0], skip_special_tokens=True)
-        decoder_outputs[file_id] = [int(token.strip(" ")) for token in decode_output.split("v_tok_")[1:]]
-    return decoder_outputs
+def nar_decode(model, tokenizer, inputs, batch_code, layer=0):
+    base_input = inputs
+    base_input['decoder_input_ids'] = batch_code
+    decode_nar = model.forward(**base_input).logits
+
+    id_range_start, id_range_end = tokenizer.convert_tokens_to_ids(
+        f'v_tok_{0 + 1024 * layer}'), tokenizer.convert_tokens_to_ids(f'v_tok_{1024 + 1024 * layer}')
+
+    # Create a tensor where values are equal to their own indices
+    indices = torch.arange(decode_nar.size(-1)).to(decode_nar.device)
+
+    # Create a mask for the range
+    mask = (indices >= id_range_start) & (indices < id_range_end)
+
+    # Set values out of range to very low value
+    decode_nar_masked = torch.where(mask, decode_nar, torch.tensor(float('-inf')).to(decode_nar.device))
+
+    # Get the argmax within the range
+    return torch.argmax(decode_nar_masked, dim=-1)
 
 
-def filter_token(output, target_tokens):
-    for i in range(output.logits.size(-1)):
-        if i not in target_tokens:
-            output.logits[:, :, i] = float("-inf")
-    return output
+def ground_truth_only(tokenizer, dataset, device):
+    layer_list = []
+    for layer_i in range(8):
+        encode_input = tokenizer(
+            "".join([f"v_tok_{u + layer_i * 1024}" for u in dataset[f'encodec_{layer_i}'][0]]),
+            return_tensors='pt', add_special_tokens=False)
+        encode_input = encode_input['input_ids'].to(device)
+        layer_list.append(encode_input)
+
+    return layer_list
 
 
-def get_nar_target_token_sets(tokenizer):
-    target_token_sets = [
-        " ".join([f"v_tok_{u + l * 1024}" for u in range(1024)])
-        for l in range(1, 8)
-    ]
-    target_token_sets = [
-        set(tokenizer.encode(tokens, add_special_tokens=False))
-        for tokens in target_token_sets
-    ]
-    eos_token_id = tokenizer.eos_token_id
-    if eos_token_id is not None and eos_token_id not in target_token_sets:
-        target_token_sets = [token_set.union({eos_token_id}) for token_set in target_token_sets]
+def cascade_ar_nar(ar_model, nar_model, ar_tokenizer, nar_tokenizer, dataset, device):
+    layer_list = []
+
+    # Get AR prediction
+    inputs = ar_tokenizer(dataset["text"][0], padding="max_length", truncation=True,
+                          max_length=1024, return_tensors="pt")
+    inputs = inputs.to(device)
+
+    bad_words_ids = [[ar_tokenizer.convert_tokens_to_ids(f'v_tok_{i}')] for i in range(1025, 1024*8)]
+    decode_ar = ar_model.generate(**inputs, max_length=1024, num_beams=1,
+                                  do_sample=True, use_cache=True, bad_words_ids=bad_words_ids)
+
+    layer_list.append(decode_ar[:, 1:-1])
+
+    # Iterative predict NAR code
+    for layer in range(1, 8):
+        layer_list.append(nar_decode(nar_model, nar_tokenizer, layer_list[-1], layer))
+
+    return layer_list
+
     
-    return target_token_sets
+def nar_model_only(model, tokenizer, dataset, device):
+    layer_list = []
+
+    inputs = tokenizer(dataset["text"][0], padding="max_length", truncation=True,
+                       max_length=1024, return_tensors="pt")
+    inputs = inputs.to(device)
+
+    # Use ground truth AR prediction
+    encode_input = tokenizer(
+        "".join([f"v_tok_{u}" for u in dataset[f'encodec_0'][0]]),
+        return_tensors='pt', add_special_tokens=False)
+    encode_input_ids = encode_input['input_ids'].to(device)
+    layer_list.append(encode_input_ids)
+
+    # Iterative predict NAR code
+    for layer in range(1, 8):
+        layer_list.append(nar_decode(model, tokenizer, inputs, layer_list[-1], layer))
+
+    return layer_list
 
 
-def inference_nar(nar_model, nar_tokenizer, dataset, device, use_gt=False):
-    decoder_outputs = {}
-    target_token_sets = get_nar_target_token_sets(nar_tokenizer)
-    
-    for i in tqdm(range(len(dataset))):
-        file_id = dataset["id"][i]
-        inputs = nar_tokenizer([dataset["text"][i]], padding="max_length", truncation=True, 
-                               max_length=1024, return_tensors="pt").to(device)
-        decoder_outputs[file_id] = decoder_outputs.get(file_id, {})
+def convert_to_encode_code(tokenizer, layer_list):
+    encodec_code = []
+    for layer, layer_ids in enumerate(tokenizer.batch_decode(torch.cat(layer_list))):
+        layer_ids = layer_ids.replace("</s>", "")
+        encodec_code.append([int(i) - layer * 1024 for i in layer_ids.split('v_tok_') if len(i) > 0])
+
+    return encodec_code
+
         
-        for l in range(7):
-            if l == 0 or use_gt:
-                decoder_input_ids = nar_tokenizer.convert_tokens_to_ids(
-                    [f"v_tok_{u + l * 1024}" for u in dataset[f"encodec_{l}"][i]])
-            else:
-                decoder_input_ids = nar_tokenizer.convert_tokens_to_ids(
-                    [f"v_tok_{u + l * 1024}" for u in decoder_outputs[file_id][f"encodec_{l}"]])
-            decoder_input_ids = torch.tensor([decoder_input_ids], device=device)
-            output = nar_model(inputs["input_ids"], decoder_input_ids=decoder_input_ids)
-            output = filter_token(output, target_token_sets[l])
-            decode_ids = torch.argmax(output.logits, dim=-1)
-            decode_output = nar_tokenizer.batch_decode(decode_ids, skip_special_tokens=True)
+def synthesize_audio(encodec_code, device):
+    model = EncodecModel.encodec_model_24khz()
+    model.set_target_bandwidth(6.0)
+    model.to(device)
 
-            decoder_outputs[file_id][f"encodec_{l + 1}"] = \
-                [int(token.strip(" ")) - (l + 1) * 1024 for token in decode_output[0].split("v_tok_")[1:]]
+    encodec_input = torch.tensor(encodec_code).unsqueeze(0)
+    encodec_input = encodec_input.to(device)
+    audio = model.decode([(encodec_input, None)]).cpu().detach().numpy()[0]
+
+    return audio
     
-    return decoder_outputs
-
-
-def inference_ar_nar(ar_model, ar_tokenizer, nar_model, nar_tokenizer, dataset, device):
-    decoder_outputs = {}
-    target_token_sets = get_nar_target_token_sets(nar_tokenizer)
-    
-    for i in tqdm(range(len(dataset))):
-        file_id = dataset["id"][i]
-        decoder_outputs[file_id] = decoder_outputs.get(file_id, {})
-        
-        inputs = ar_tokenizer(dataset["text"][i], padding="max_length", truncation=True,
-                              max_length=1024, return_tensors="pt").to(device)
-        ar_output_ids = ar_model.generate(input_ids=inputs["input_ids"], num_beams=1, do_sample=False,
-                                          max_length=1024)
-        ar_decode_output = ar_tokenizer.decode(ar_output_ids[0], skip_special_tokens=True)
-        decoder_outputs[file_id]["encodec_0"] = [int(token.strip(" ")) for token in ar_decode_output.split("v_tok_")[1:]]
-        
-        for l in range(1, 8):
-            decoder_input_ids = nar_tokenizer.convert_tokens_to_ids(
-                [f"v_tok_{u + (l - 1) * 1024}" for u in decoder_outputs[file_id][f"encodec_{l - 1}"]])
-            decoder_input_ids = torch.tensor([decoder_input_ids], device=device)
-            output = nar_model(inputs["input_ids"], decoder_input_ids=decoder_input_ids)
-            output = filter_token(output, target_token_sets[l - 1])
-            decode_ids = torch.argmax(output.logits, dim=-1)
-            decode_output = nar_tokenizer.batch_decode(decode_ids, skip_special_tokens=True)
-            
-            decoder_outputs[file_id][f"encodec_{l}"] = \
-                [int(token.strip(" ")) - l * 1024 for token in decode_output[0].split("v_tok_")[1:]]
-    
-    return decoder_outputs
-        
-
-
-def write_decoder_output_ids(ar_outputs, nar_outputs, result_json):
-    assert set(ar_outputs.keys()) == set(nar_outputs.keys())
-    
-    result = {
-        k: {**{f"encodec_0": ar_outputs[k]}, **nar_outputs[k]}
-        for k in ar_outputs.keys()
-    }
-    with open(result_json, "w+") as f:
-        json.dump(result, f)
-
 
 def main(args):
+    set_seed(args.seed)
     device = args.device
     
-    # dataset
-    dataset = load_dataset("voidful/librispeech_encodec", split="validationclean")
+    dataset = load_dataset(args.dataset, split="+".join(args.splits))
     dataset = dataset.filter(lambda x : len(x[f"encodec_0"]) <= 1000)
-    dataset = dataset.shuffle(seed=42).select(range(30))
+    dataset = dataset.shuffle(args.seed).select(range(1))
     
+    if args.ground_truth_only:
+        tokenizer = AutoTokenizer.from_pretrained(args.ground_truth_model_name)
+        layer_list = ground_truth_only(tokenizer, dataset, device)
+        encodec_code = convert_to_encode_code(tokenizer, layer_list)    
+        audio = synthesize_audio(encodec_code, device)
+        sf.write(args.ground_truth_output_path, np.ravel(audio), samplerate=24000)
+
     if args.cascade_ar_nar:
-        ar_model = eval(args.ar_model).from_pretrained(args.ar_model_ckpt).to(device)
-        ar_tokenizer = AutoTokenizer.from_pretrained(args.ar_model_ckpt)
-        nar_model = eval(args.nar_model).from_pretrained(args.nar_model_ckpt).to(device)
-        nar_tokenizer = AutoTokenizer.from_pretrained(args.nar_model_ckpt)
-        decoder_output_ids = inference_ar_nar(ar_model, ar_tokenizer, nar_model, nar_tokenizer, dataset, device)
-        with open(args.result_json, "w+") as f:
-            json.dump(decoder_output_ids, f)
-    else:
-        if args.use_ar_model:
-            ar_model = eval(args.ar_model).from_pretrained(args.ar_model_ckpt).to(device)
-            ar_tokenizer = AutoTokenizer.from_pretrained(args.ar_model_ckpt)
-            ar_decoder_output_ids = inference_ar(ar_model, ar_tokenizer, dataset, device)
-        else:
-            ar_decoder_output_ids = {
-                dataset["id"][i]: dataset["encodec_0"][i]
-                for i in range(len(dataset))
-            }
+        ar_tokenizer = AutoTokenizer.from_pretrained(args.ar_checkpoint)
+        ar_model = BartForConditionalGeneration.from_pretrained(args.ar_checkpoint)
+        ar_model.to(device)
 
-        if args.use_nar_model:
-            nar_model = eval(args.nar_model).from_pretrained(args.nar_model_ckpt).to(device)
-            nar_tokenizer = AutoTokenizer.from_pretrained(args.nar_model_ckpt)
-            nar_decoder_output_ids = inference_nar(nar_model, nar_tokenizer, dataset, device, args.use_nar_gt)
-        else:
-            nar_decoder_output_ids = {
-                dataset["id"][i]: {
-                    f"encodec_{l}": dataset[f"encodec_{l}"][i]
-                    for l in range(1, 8)
-                }
-                for i in range(len(dataset))
-            }
+        nar_tokenizer = AutoTokenizer.from_pretrained(args.nar_checkpoint)
+        nar_model = NARBartForConditionalGeneration.from_pretrained(args.nar_checkpoint)
+        nar_model.to(device)
 
-        # output file
-        write_decoder_output_ids(ar_decoder_output_ids, nar_decoder_output_ids, args.result_json)
+        layer_list = cascade_ar_nar(ar_model, nar_model, ar_tokenizer, nar_tokenizer, dataset, device)
+        encodec_code = convert_to_encode_code(nar_tokenizer, layer_list)    
+        audio = synthesize_audio(encodec_code, device)
+        sf.write(args.cascade_output_path, np.ravel(audio), samplerate=24000)
+            
+    if args.nar_model_only:
+        nar_tokenizer = AutoTokenizer.from_pretrained(args.nar_checkpoint)
+        nar_model = NARBartForConditionalGeneration.from_pretrained(args.nar_checkpoint)
+        nar_model.to(device)
 
-
+        layer_list = nar_model_only(nar_model, nar_tokenizer, dataset, device)
+        encodec_code = convert_to_encode_code(nar_tokenizer, layer_list)    
+        audio = synthesize_audio(encodec_code, device)
+        sf.write(args.nar_output_path, np.ravel(audio), samplerate=24000)
+        
+        
 def parse_args() -> Namespace:
     parser = ArgumentParser()
-    parser.add_argument(
-        "--cascade_ar_nar",
-        action="store_true"
-    )
-    parser.add_argument(
-        "--use_ar_model",
-        action="store_true"
-    )
-    parser.add_argument(
-        "--use_nar_model",
-        action="store_true"
-    )
-    parser.add_argument(
-        "--ar_model",
-        type=str,
-        default="BartForConditionalGeneration"
-    )
-    parser.add_argument(
-        "--nar_model",
-        type=str,
-        default="NARBartForConditionalGeneration"
-    )
-    parser.add_argument(
-        "--ar_model_ckpt",
-        type=str,
-        default="./training_output/checkpoint-60000"
-    )
-    parser.add_argument(
-        "--nar_model_ckpt",
-        type=str,
-        default="./training_output/checkpoint-60000"
-    )
-    parser.add_argument(
-        "--use_nar_gt",
-        action="store_true"
-    )
-    parser.add_argument(
-        "--result_json",
-        type=str,
-        default="./result.json"
-    )
-    parser.add_argument(
-        "--device",
-        type=str,
-        default="cuda"
-    )
+    parser.add_argument("-d", "--dataset", type=str, default="voidful/librispeech_encodec")
+    parser.add_argument("-s", "--splits", type=str, nargs="+", default=["trainclean100"])
+    
+    parser.add_argument("--ground_truth_only", action="store_true")
+    parser.add_argument("--cascade_ar_nar", action="store_true")
+    parser.add_argument("--nar_model_only", action="store_true")
+    
+    parser.add_argument("--ground_truth_model_name", type=str, default="voidful/bart-base-unit")
+    parser.add_argument("--ar_checkpoint", type=str, default="/work/b08902123/SpeechChatGPT/previous_ckpt/ar/checkpoint-105000/")
+    parser.add_argument("--nar_checkpoint", type=str, default="/work/b08902123/SpeechChatGPT/previous_ckpt/nar/checkpoint-105000/")
+
+    parser.add_argument("--ground_truth_output_path", type=str, default="ground_truth.wav")
+    parser.add_argument("--cascade_output_path", type=str, default="cascade.wav")
+    parser.add_argument("--nar_output_path", type=str, default="nar.wav")
+    
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--device", type=torch.device, default="cuda")
     
     args = parser.parse_args()    
     return args
 
-        
+
 if __name__ == "__main__":
     args = parse_args()
     main(args)
