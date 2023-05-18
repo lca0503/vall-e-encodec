@@ -62,7 +62,7 @@ def cascade_ar_nar(ar_model, nar_model, ar_tokenizer, nar_tokenizer, dataset, de
                           max_length=1024, return_tensors="pt")
     inputs = inputs.to(device)
 
-    bad_words_ids = [[ar_tokenizer.convert_tokens_to_ids(f'v_tok_{i}')] for i in range(1025, 1024*8)]
+    bad_words_ids = [[ar_tokenizer.convert_tokens_to_ids(f'v_tok_{i}')] for i in range(1024, 1024*8)]
     decode_ar = ar_model.generate(**inputs, max_length=1024, num_beams=1,
                                   do_sample=True, use_cache=True, bad_words_ids=bad_words_ids)
 
