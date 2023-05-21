@@ -67,11 +67,11 @@ def cascade_ar_nar(ar_model, nar_model, ar_tokenizer, nar_tokenizer, dataset, de
     decode_ar = ar_model.generate(**inputs, max_length=1024, num_beams=1,
                                   do_sample=True, use_cache=True, bad_words_ids=bad_words_ids)
 
-    layer_list.append(decode_ar[:, 1:-1])
-
+    layer_list.append(decode_ar[:, 2:-1])
+    
     # Iterative predict NAR code
     for layer in range(1, 8):
-        layer_list.append(nar_decode(nar_model, nar_tokenizer, layer_list[-1], layer))
+        layer_list.append(nar_decode(nar_model, nar_tokenizer, inputs, layer_list[-1], layer))
 
     return layer_list
 
@@ -162,19 +162,19 @@ def main(args):
 def parse_args() -> Namespace:
     parser = ArgumentParser()
     parser.add_argument("-d", "--dataset", type=str, default="voidful/librispeech_encodec")
-    parser.add_argument("-s", "--splits", type=str, nargs="+", default=["trainclean100"])
+    parser.add_argument("-s", "--splits", type=str, nargs="+", default=["validationclean"])
     
     parser.add_argument("--ground_truth_only", action="store_true")
     parser.add_argument("--cascade_ar_nar", action="store_true")
     parser.add_argument("--nar_model_only", action="store_true")
     
     parser.add_argument("--ground_truth_model_name", type=str, default="voidful/bart-base-unit")
-    parser.add_argument("--ar_checkpoint", type=str, default="../previous_ckpt/ar/checkpoint-105000/")
-    parser.add_argument("--nar_checkpoint", type=str, default="../previous_ckpt/without_pretrained_nar/checkpoint-105000/")
+    parser.add_argument("--ar_checkpoint", type=str, default="../previous_ckpt/tts_ar/checkpoint-75000/")
+    parser.add_argument("--nar_checkpoint", type=str, default="../previous_ckpt/tts_nar_fixed/checkpoint-105000/")
 
-    parser.add_argument("--ground_truth_output_path", type=str, default="output_wav/ground_truth/train_1.wav")
-    parser.add_argument("--cascade_output_path", type=str, default="output_wav/cascade/train_1.wav")
-    parser.add_argument("--nar_output_path", type=str, default="output_wav/without_pretrained_nar/train_3.wav")
+    parser.add_argument("--ground_truth_output_path", type=str, default="output_wav/tts/ground_truth/train_1.wav")
+    parser.add_argument("--cascade_output_path", type=str, default="output_wav/tts/ar_nar_fixed_cascade/validation_3.wav")
+    parser.add_argument("--nar_output_path", type=str, default="output_wav/tts/without_pretrained_nar/train_1.wav")
     
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--device", type=torch.device, default="cuda")
