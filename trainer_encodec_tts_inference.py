@@ -23,11 +23,11 @@ def set_seed(seed):
 
 def nar_decode(model, tokenizer, inputs, batch_code, layer=0):
     base_input = inputs
-    base_input['decoder_input_ids'] = batch_code
+    base_input["decoder_input_ids"] = batch_code
     decode_nar = model.forward(**base_input).logits
 
     id_range_start, id_range_end = tokenizer.convert_tokens_to_ids(
-        f'v_tok_{0 + 1024 * layer}'), tokenizer.convert_tokens_to_ids(f'v_tok_{1024 + 1024 * layer}')
+        f"v_tok_{0 + 1024 * layer}"), tokenizer.convert_tokens_to_ids(f"v_tok_{1024 + 1024 * layer}")
 
     # Create a tensor where values are equal to their own indices
     indices = torch.arange(decode_nar.size(-1)).to(decode_nar.device)
@@ -36,7 +36,7 @@ def nar_decode(model, tokenizer, inputs, batch_code, layer=0):
     mask = (indices >= id_range_start) & (indices < id_range_end)
 
     # Set values out of range to very low value
-    decode_nar_masked = torch.where(mask, decode_nar, torch.tensor(float('-inf')).to(decode_nar.device))
+    decode_nar_masked = torch.where(mask, decode_nar, torch.tensor(float("-inf")).to(decode_nar.device))
 
     # Get the argmax within the range
     return torch.argmax(decode_nar_masked, dim=-1)
@@ -47,9 +47,9 @@ def ground_truth_only(tokenizer, dataset, device):
 
     for layer_i in range(8):
         encode_input = tokenizer(
-            "".join([f"v_tok_{u + layer_i * 1024}" for u in dataset[f'encodec_{layer_i}'][0]]),
-            return_tensors='pt', add_special_tokens=False)
-        encode_input = encode_input['input_ids'].to(device)
+            "".join([f"v_tok_{u + layer_i * 1024}" for u in dataset[f"encodec_{layer_i}"][0]]),
+            return_tensors="pt", add_special_tokens=False)
+        encode_input = encode_input["input_ids"].to(device)
         layer_list.append(encode_input)
 
     return layer_list
@@ -63,7 +63,7 @@ def cascade_ar_nar(ar_model, nar_model, ar_tokenizer, nar_tokenizer, dataset, de
                           max_length=1024, return_tensors="pt")
     inputs = inputs.to(device)
 
-    bad_words_ids = [[ar_tokenizer.convert_tokens_to_ids(f'v_tok_{i}')] for i in range(1024, 1024*8)]
+    bad_words_ids = [[ar_tokenizer.convert_tokens_to_ids(f"v_tok_{i}")] for i in range(1024, 1024*8)]
     decode_ar = ar_model.generate(**inputs, max_length=1024, num_beams=1,
                                   do_sample=True, use_cache=True, bad_words_ids=bad_words_ids)
 
@@ -85,9 +85,9 @@ def nar_model_only(model, tokenizer, dataset, device):
 
     # Use ground truth AR prediction
     encode_input = tokenizer(
-        "".join([f"v_tok_{u}" for u in dataset[f'encodec_0'][0]]),
-        return_tensors='pt', add_special_tokens=False)
-    encode_input_ids = encode_input['input_ids'].to(device)
+        "".join([f"v_tok_{u}" for u in dataset[f"encodec_0"][0]]),
+        return_tensors="pt", add_special_tokens=False)
+    encode_input_ids = encode_input["input_ids"].to(device)
     layer_list.append(encode_input_ids)
 
     # Iterative predict NAR code
@@ -101,7 +101,7 @@ def convert_to_encode_code(tokenizer, layer_list):
     encodec_code = []
     for layer, layer_ids in enumerate(tokenizer.batch_decode(torch.cat(layer_list))):
         layer_ids = layer_ids.replace("</s>", "")
-        encodec_code.append([int(i) - layer * 1024 for i in layer_ids.split('v_tok_') if len(i) > 0])
+        encodec_code.append([int(i) - layer * 1024 for i in layer_ids.split("v_tok_") if len(i) > 0])
 
     return encodec_code
 
@@ -170,11 +170,11 @@ def parse_args() -> Namespace:
     
     parser.add_argument("--ground_truth_model_name", type=str, default="voidful/bart-base-unit")
     parser.add_argument("--ar_checkpoint", type=str, default="../previous_ckpt/ar/checkpoint-105000/")
-    parser.add_argument("--nar_checkpoint", type=str, default="../previous_ckpt/nar/checkpoint-105000/")
+    parser.add_argument("--nar_checkpoint", type=str, default="../previous_ckpt/without_pretrained_nar/checkpoint-105000/")
 
-    parser.add_argument("--ground_truth_output_path", type=str, default="ground_truth.wav")
-    parser.add_argument("--cascade_output_path", type=str, default="cascade.wav")
-    parser.add_argument("--nar_output_path", type=str, default="nar.wav")
+    parser.add_argument("--ground_truth_output_path", type=str, default="output_wav/ground_truth/train_1.wav")
+    parser.add_argument("--cascade_output_path", type=str, default="output_wav/cascade/train_1.wav")
+    parser.add_argument("--nar_output_path", type=str, default="output_wav/without_pretrained_nar/train_3.wav")
     
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--device", type=torch.device, default="cuda")
