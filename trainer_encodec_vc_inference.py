@@ -97,7 +97,6 @@ def cascade_ar_nar(ar_model, nar_model, ar_tokenizer, nar_tokenizer, dataset, de
     bad_words_ids = [[ar_tokenizer.convert_tokens_to_ids(f"v_tok_{i}")] for i in range(1024, 1024*8)]
     decode_ar = ar_model.generate(**inputs, max_length=1024, num_beams=1,
                                   do_sample=True, use_cache=True, bad_words_ids=bad_words_ids)
-    print(decode_ar)
     layer_list.append(decode_ar[:, 2:-1])
     
     # Iterative predict NAR code
@@ -202,17 +201,17 @@ def main(args):
 def parse_args() -> Namespace:
     parser = ArgumentParser()
     parser.add_argument("-d", "--dataset", type=str, default="lca0503/soxdata_small_encodec")
-    parser.add_argument("-s", "--splits", type=str, nargs="+", default=["validation"])
+    parser.add_argument("-s", "--splits", type=str, nargs="+", default=["train"])
     
     parser.add_argument("--ground_truth_only", action="store_true")
     parser.add_argument("--cascade_ar_nar", action="store_true")
     parser.add_argument("--nar_model_only", action="store_true")
     
     parser.add_argument("--ground_truth_model_name", type=str, default="voidful/bart-base-unit")
-    parser.add_argument("--ar_checkpoint", type=str, default="../previous_ckpt/vc_ar/checkpoint-70000/")
+    parser.add_argument("--ar_checkpoint", type=str, default="../previous_ckpt/vc_ar/checkpoint-40000/")
     parser.add_argument("--nar_checkpoint", type=str, default="../previous_ckpt/vc_nar/checkpoint-70000/")
 
-    parser.add_argument("--ground_truth_output_path", type=str, default="output_wav/vc/ground_truth_src/validation_3.wav")
+    parser.add_argument("--ground_truth_output_path", type=str, default="output_wav/vc/ground_truth/train_1.wav")
     parser.add_argument("--cascade_output_path", type=str, default="output_wav/vc/ar_nar_cascade/train_1.wav")
     parser.add_argument("--nar_output_path", type=str, default="output_wav/vc/nar/train_1.wav")
     
