@@ -34,12 +34,10 @@ TRAIN_ARGS = Seq2SeqTrainingArguments(
 )
 
 
-def pad_sequences(sequences, max_length, padding_value):
-    return [sequence + [padding_value] * (max_length - len(sequence)) for sequence in sequences]
-
-
-def get_attention_mask(seq_length, max_length):
-    return [1] * seq_length + [0] * (max_length - seq_length)
+def pad_sequences_and_create_masks(sequences, max_length, padding_value):
+    padded_sequences = [sequence + [padding_value] * (max_length - len(sequence)) for sequence in sequences]
+    attention_masks = [[1 if token != padding_value else 0 for token in sequence] for sequence in padded_sequences]
+    return padded_sequences, attention_masks
 
 
 def filter_examples(example):
@@ -48,7 +46,6 @@ def filter_examples(example):
 
 def process_data_to_model_inputs(batch, tokenizer):
     input_ids = []
-    attention_mask = []
     decoder_input_ids = []
     labels = []
 
@@ -74,22 +71,24 @@ def process_data_to_model_inputs(batch, tokenizer):
                 instruction_ids + [sep_token_id] + \
                 transcription_ids + [sep_token_id] + \
                 curr_src_encodec_ids + [eos_token_id]
-            encoder_attention_mask = get_attention_mask(len(encoder_input_ids), max_length)
             
             input_ids.append(encoder_input_ids)
-            attention_mask.append(encoder_attention_mask)
             decoder_input_ids.append(prev_tgt_encodec_ids)
             labels.append(curr_tgt_encodec_ids)
 
     # Pad decoder_input_ids and labels
-    input_ids = pad_sequences(input_ids, max_length=max_length, padding_value=pad_token_id)
-    decoder_input_ids = pad_sequences(decoder_input_ids, max_length=max_length, padding_value=pad_token_id)
-    labels = pad_sequences(labels, max_length=max_length, padding_value=-100)
+    input_ids, attention_mask = pad_sequences_and_create_masks(input_ids, max_length=max_length,
+                                                               padding_value=pad_token_id)
+    decoder_input_ids, decoder_attention_mask = pad_sequences_and_create_masks(decoder_input_ids, max_length=max_length,
+                                                                               padding_value=pad_token_id)
+    labels, _ = pad_sequences_and_create_masks(labels, max_length=max_length,
+                                               padding_value=-100)
 
     return {
         "input_ids": input_ids,
         "attention_mask": attention_mask,
         "decoder_input_ids": decoder_input_ids,
+        "decoder_attention_mask": decoder_attention_mask,
         "labels": labels
     }
 
@@ -170,7 +169,7 @@ def main(args):
 
 def parse_args() -> Namespace:
     parser = ArgumentParser()
-    parser.add_argument("-d", "--dataset", type=str, default="lca0503/soxdata_small_encodec")
+    parser.add_argument("-d", "--dataset", type=str, default="lca0503/soxdata_encodec")
     parser.add_argument("-t", "--train_splits", type=str, nargs="+",
                         default=["train"])
     parser.add_argument("-e", "--eval_splits", type=str, nargs="+",
