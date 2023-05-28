@@ -45,20 +45,6 @@ def audio_path_from_id(audio_id, dir):
     return Path(dir) / f"{audio_id}.wav"
 
 
-# 3. Audio Encodec Code
-def convert_to_encodec_code(wav_path, model, device):
-    wav, sr = torchaudio.load(wav_path)
-    wav = convert_audio(wav, sr, model.sample_rate, model.channels)
-    wav = wav.unsqueeze(0)
-
-    # Extract discrete codes from EnCodec
-    with torch.no_grad():
-        wav = wav.to(device)
-        encoded_frames = model.encode(wav)
-    codes = torch.cat([encoded[0] for encoded in encoded_frames], dim=-1)
-    return codes.cpu().squeeze(0).numpy()
-
-
 def main(args):
     set_seed(args.seed)
     device = args.device
@@ -70,8 +56,6 @@ def main(args):
     model = EncodecModel.encodec_model_24khz()
     model.set_target_bandwidth(6.0)
     model.to(device)
-    
-    encodec_24khz_8codebook = partial(convert_to_encodec_code, model=model, device=device)
 
     for split in args.splits:
         print(f"[INFO] Process {split.upper()} split.")
@@ -91,7 +75,6 @@ def main(args):
         source_audios = librosa.util.find_files(source_audio_dir, ext=["wav"])
         target_audios = librosa.util.find_files(target_audio_dir, ext=["wav"])
         file_ids = [Path(audio).stem for audio in source_audios]
-        test_audio = source_audios[0]
         assert len(source_audios) == len(target_audios)
         assert len(source_audios) > 0
         assert len(target_audios) > 0
@@ -102,35 +85,56 @@ def main(args):
 
         print(f"[INFO] There are {len(file_ids)} files to be processed.")
         start = time()
-        for file_id in tqdm(file_ids, desc="Converting", ascii=False, ncols=100):
+        for idx, file_id in enumerate(tqdm(file_ids, desc="Converting", ascii=False, ncols=100)):
             instruction = get_instruction(file_id, instruction_dir)
             transcription = get_transcription(file_id, transcription_dir)
             src_path = source_audio_path(file_id)
             tgt_path = target_audio_path(file_id)
-            src_code = encodec_24khz_8codebook(src_path)
-            tgt_code = encodec_24khz_8codebook(tgt_path)
+
+            wav, sr = torchaudio.load(src_path)
+            wav = convert_audio(wav, sr, model.sample_rate, model.channels).unsqueeze(0)
+    
+            # Extract discrete codes from EnCodec
+            with torch.no_grad():
+                wav = wav.to(device)
+                encoded_frames = model.encode(wav)
+    
+            codes = torch.cat([encoded[0] for encoded in encoded_frames], dim=-1)
+            src_code = list(codes.detach().cpu().squeeze(0).numpy())
+
+            wav, sr = torchaudio.load(tgt_path)
+            wav = convert_audio(wav, sr, model.sample_rate, model.channels).unsqueeze(0)
+    
+            # Extract discrete codes from EnCodec
+            with torch.no_grad():
+                wav = wav.to(device)
+                encoded_frames = model.encode(wav)
+    
+            codes = torch.cat([encoded[0] for encoded in encoded_frames], dim=-1)
+            tgt_code = list(codes.detach().cpu().squeeze(0).numpy())
             
             dataset["file_id"].append(file_id)
             dataset["instruction"].append(instruction)
             dataset["transcription"].append(transcription)
             for i in range(8):
-                dataset[f"src_encodec_{i}"].append(list(src_code[i]))
-                dataset[f"tgt_encodec_{i}"].append(list(tgt_code[i]))
-        
+                dataset[f"src_encodec_{i}"].append(src_code[i])
+                dataset[f"tgt_encodec_{i}"].append(tgt_code[i])
+
         print(f"[INFO] It takes {time() - start} seconds to process all files.")
 
         dataset = Dataset.from_dict(dataset)
         dataset_dict[split] = dataset
 
     Soxdataset = DatasetDict(dataset_dict)
-    Soxdataset.push_to_hub(args.repo_name)
+    
+    Soxdataset.save_to_disk(args.output_dir)
 
     
 def parse_args() -> Namespace:
     parser = ArgumentParser()
     parser.add_argument("-d", "--data_dir", type=str, default="./data/libritts_subset")
     parser.add_argument("-s", "--splits", nargs="*", default=["train", "validation", "test"])
-    parser.add_argument("-r", "--repo_name", type=str, default="lca0503/soxdata_small_encodec_v2")
+    parser.add_argument("-o", "--output_dir", type=str, default="./data/libritts_subset/soxdata_encodec")
     
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--device", type=torch.device, default="cuda")

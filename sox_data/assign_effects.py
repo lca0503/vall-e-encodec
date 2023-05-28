@@ -31,7 +31,7 @@ def parse_args() -> Namespace:
     parser = ArgumentParser()
     parser.add_argument("-d", "--data_dir", type=str, default="./data/libritts_subset")
     parser.add_argument("-s", "--split", type=str, default="train")
-    parser.add_argument("-e", "--effects", nargs="*", default=["bass", "tempo"])
+    parser.add_argument("-e", "--effects", nargs="*", default=["bass" "treble" "chorus" "delay" "echo" "fade" "loudness" "repeat" "reverb" "reverse" "tempo" "vol" "pitch" "contrast"])
 
     parser.add_argument("--seed", type=int, default=0)
     

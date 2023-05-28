@@ -18,21 +18,21 @@
     ```
 
 2. Get the subset dataset from the LibriTTS dataset using `get_subset.py`:
-    
+
     ```
-    python3 get_subset.py -s train-clean-100 train-clean-360 train-other-500 -n 20000 -o ./data/libritts_subset/train
-    python3 get_subset.py -s dev-clean dev-other -n 2000 -o ./data/libritts_subset/validation
-    python3 get_subset.py -s test-clean test-other -n 2000 -o ./data/libritts_subset/test
+    python3 get_subset.py -s train-clean-100 train-clean-360 train-other-500 -n -1 -o ./data/libritts_subset/train
+    python3 get_subset.py -s dev-clean dev-other -n -1 -o ./data/libritts_subset/validation
+    python3 get_subset.py -s test-clean test-other -n -1 -o ./data/libritts_subset/test
     ```
-    
+
 3. Assign effects to subset dataset using `assign_effects.py`:
 
     ```
-    python3 assign_effects.py -d ./data/libritts_subset -s train -e bass tempo
-    python3 assign_effects.py -d ./data/libritts_subset -s validation -e bass tempo
-    python3 assign_effects.py -d ./data/libritts_subset -s test -e bass tempo
+    python3 assign_effects.py -d ./data/libritts_subset -s train -e bass treble chorus delay echo fade loudness repeat reverb reverse tempo vol pitch contrast
+    python3 assign_effects.py -d ./data/libritts_subset -s validation -e bass treble chorus delay echo fade loudness repeat reverb reverse tempo vol pitch contrast
+    python3 assign_effects.py -d ./data/libritts_subset -s test -e bass treble chorus delay echo fade loudness repeat reverb reverse tempo vol pitch contrast
     ```
-    
+
 4. Generate waveform with sox effects using `generate_waveform.sh`:
 
     ```
@@ -44,21 +44,28 @@
 5. Convert command to instruction using `command_to_instruction.py`:
 
     ```
-    python3 command_to_instruction.py -d ./data/libritts_subset -s train -e ./data/effect_to_instructions.json
-    python3 command_to_instruction.py -d ./data/libritts_subset -s validation -e ./data/effect_to_instructions.json
-    python3 command_to_instruction.py -d ./data/libritts_subset -s test -e ./data/effect_to_instructions.json
+    python3 command_to_instruction.py -d ./data/libritts_subset -s train -i ./data/instruction_candidates.json
+    python3 command_to_instruction.py -d ./data/libritts_subset -s validation -i ./data/instruction_candidates.json
+    python3 command_to_instruction.py -d ./data/libritts_subset -s test -i ./data/instruction_candidates.json
     ```
 
 6. Convert waveform to encodec unit and upload subset dataset to huggingface using `waveform_to_unit.py`:
 
     ```
-    python3 waveform_to_unit.py -d ./data/libritts_subset -s train validation test -r lca0503/soxdata_small_encodec_v2
+    python3 waveform_to_unit.py -d ./data/libritts_subset -s train validation test -o ./data/libritts_subset/soxdata_encodec
     ```
-    
+
+7. Upload dataset to huggingface. Login from the command line and run `upload_dataset.py`:
+
+   ```
+   huggingface-cli login
+   python3 upload_dataset.py -d ./data/libritts_subset/soxdata_encodec -r lca0503/soxdata_encodec
+   ```
+
 ## After running these commands, you should get ...
 ```
 data/
-├── effect_to_instructions.json
+├── instruction_candidates.json
 ├── libritts/
 │   ├── train-clean-100/
 │   ├── train-clean-360/
@@ -69,6 +76,7 @@ data/
 │   ├── test-other/
 │   └── ...
 └── libritts_subset/
+    ├── soxdata_encodec/
     ├── train/
     │   ├── effects/
     │   │   ├── tempo.txt
@@ -100,13 +108,12 @@ data/
 
 ## Download Dataset
 
-Encodec small Sox dataset is now available at [huggingface](https://huggingface.co/datasets/lca0503/soxdata_small_encodec).
+Encodec Sox dataset is now available at [huggingface](https://huggingface.co/datasets/lca0503/soxdata_encodec).
 
 | Dataset Split | Number of Instances in Split |
 | ------------- | ---------------------------- |
-| Train         | 20000                        |
-| Validation    | 2000                         |
-| Test          | 2000                         |
-	
-`effects: tempo, bass`
+| Train         | 354780                       |
+| Validation    | 10349                        |
+| Test          | 9957                         |
 
+`effects: bass treble chorus delay echo fade loudness repeat reverb reverse tempo vol pitch contrast`
