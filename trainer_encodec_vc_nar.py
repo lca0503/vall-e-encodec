@@ -41,10 +41,6 @@ def pad_sequences_and_create_masks(sequences, max_length, padding_value):
     return padded_sequences, attention_masks
 
 
-def filter_examples(example):
-    return len(example[f"src_encodec_0"]) <= 700
-
-
 def process_data_to_model_inputs(batch, tokenizer):
     input_ids = []
     decoder_input_ids = []
@@ -72,7 +68,11 @@ def process_data_to_model_inputs(batch, tokenizer):
                 instruction_ids + [sep_token_id] + \
                 transcription_ids + [sep_token_id] + \
                 curr_src_encodec_ids + [eos_token_id]
-            
+
+            # Filter inputs
+            if len(encoder_input_ids) > max_length:
+                continue
+
             input_ids.append(encoder_input_ids)
             decoder_input_ids.append(prev_tgt_encodec_ids)
             labels.append(curr_tgt_encodec_ids)
@@ -97,9 +97,6 @@ def process_data_to_model_inputs(batch, tokenizer):
 def get_dataset(tokenizer, args):
     train_dataset = load_dataset(args.dataset, "train", split="+".join(args.train_splits))
     eval_dataset = load_dataset(args.dataset, "eval", split="+".join(args.eval_splits))
-
-    train_dataset = train_dataset.filter(filter_examples)
-    eval_dataset = eval_dataset.filter(filter_examples)
 
     train_dataset = train_dataset.map(
         process_data_to_model_inputs,
