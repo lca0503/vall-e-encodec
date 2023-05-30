@@ -71,7 +71,7 @@ def process_data_to_model_inputs(batch, tokenizer):
 
             # Filter inputs
             if len(encoder_input_ids) > max_length:
-                continue
+                break
 
             input_ids.append(encoder_input_ids)
             decoder_input_ids.append(prev_tgt_encodec_ids)
