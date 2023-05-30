@@ -70,7 +70,7 @@ def process_data_to_model_inputs(batch, tokenizer):
                 curr_src_encodec_ids + [eos_token_id]
 
             # Filter inputs
-            if len(encoder_input_ids) > max_length:
+            if len(encoder_input_ids) > max_length or len(prev_tgt_encodec_ids) > max_length:
                 break
 
             input_ids.append(encoder_input_ids)
