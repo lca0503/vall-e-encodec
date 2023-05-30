@@ -3,11 +3,10 @@ from argparse import ArgumentParser, Namespace
 import torch
 import wandb
 from datasets import load_dataset
+from encodec_model.nar_bart_model import NARBartForConditionalGeneration
 from jiwer import wer
 from transformers import (AutoTokenizer, Seq2SeqTrainer,
                           Seq2SeqTrainingArguments)
-
-from encodec_model.nar_bart_model import NARBartForConditionalGeneration
 
 wandb.init(project="encodec_tts", 
            name="bart-base-nar-fixed",
