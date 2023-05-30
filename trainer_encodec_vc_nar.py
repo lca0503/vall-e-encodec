@@ -9,27 +9,28 @@ from transformers import (AutoTokenizer, Seq2SeqTrainer,
                           Seq2SeqTrainingArguments)
 
 wandb.init(project="encodec_vc", 
-           name="bart-base-nar",
+           name="speech-chatpgpt-base-nar",
 )
 
 
 TRAIN_ARGS = Seq2SeqTrainingArguments(
-    output_dir="./training_output/vc_nar",
-    num_train_epochs=10,
+    output_dir="./training_output/speech-chatpgpt-base-nar",
+    num_train_epochs=3,
     per_device_train_batch_size=8,
     per_device_eval_batch_size=8,
     warmup_ratio=0.08,
     weight_decay=1e-4,
-    logging_dir="./logs/vc_nar",
+    logging_dir="./logs/speech-chatpgpt-base-nar",
     logging_steps=500,
-    save_steps=2500,
-    save_total_limit=2,
+    save_steps=5000,
+    save_total_limit=5,
     evaluation_strategy="steps",
-    eval_steps=2500,
+    eval_steps=5000,
     predict_with_generate=False,
     fp16=True,
-    gradient_accumulation_steps=2,
     learning_rate=1e-4,
+    push_to_hub=True,
+    hub_model_id="lca0503/speech-chatpgpt-base-nar",
     report_to="wandb",
 )
 
@@ -169,12 +170,12 @@ def main(args):
 
 def parse_args() -> Namespace:
     parser = ArgumentParser()
-    parser.add_argument("-d", "--dataset", type=str, default="lca0503/soxdata_encodec")
+    parser.add_argument("-d", "--dataset", type=str, default="lca0503/GPTspeech_encodec")
     parser.add_argument("-t", "--train_splits", type=str, nargs="+",
                         default=["train"])
     parser.add_argument("-e", "--eval_splits", type=str, nargs="+",
                         default=["validation"])
-    parser.add_argument("-m", "--model_name", type=str, default="voidful/bart-base-unit")
+    parser.add_argument("-m", "--model_name", type=str, default="/work/b08902123/SpeechChatGPT/previous_ckpt/tts_nar_fixed/checkpoint-105000/")
 
     args = parser.parse_args()    
     return args
