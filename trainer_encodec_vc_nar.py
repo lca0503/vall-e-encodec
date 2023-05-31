@@ -7,6 +7,11 @@ from encodec_model.nar_bart_model import NARBartForConditionalGeneration
 from jiwer import wer
 from transformers import (AutoTokenizer, Seq2SeqTrainer,
                           Seq2SeqTrainingArguments)
+import os
+
+
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
 
 wandb.init(project="encodec_vc", 
            name="speech-chatpgpt-base-nar",
@@ -15,20 +20,20 @@ wandb.init(project="encodec_vc",
 
 TRAIN_ARGS = Seq2SeqTrainingArguments(
     output_dir="./training_output/speech-chatpgpt-base-nar",
-    num_train_epochs=3,
-    per_device_train_batch_size=8,
-    per_device_eval_batch_size=8,
+    num_train_epochs=2,
+    per_device_train_batch_size=6,
+    per_device_eval_batch_size=6,
     warmup_ratio=0.08,
-    weight_decay=1e-4,
+    weight_decay=1e-2,
     logging_dir="./logs/speech-chatpgpt-base-nar",
     logging_steps=500,
-    save_steps=5000,
+    save_steps=10000,
     save_total_limit=5,
     evaluation_strategy="steps",
-    eval_steps=5000,
+    eval_steps=10000,
     predict_with_generate=False,
     fp16=True,
-    learning_rate=1e-4,
+    learning_rate=1e-5,
     push_to_hub=True,
     hub_model_id="lca0503/speech-chatpgpt-base-nar",
     report_to="wandb",
