@@ -14,18 +14,18 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
 wandb.init(project="encodec_vc", 
-           name="speech-chatpgpt-base-nar",
+           name="speech-chatgpt-base-nar",
 )
 
 
 TRAIN_ARGS = Seq2SeqTrainingArguments(
-    output_dir="./training_output/speech-chatpgpt-base-nar",
+    output_dir="./training_output/speech-chatgpt-base-nar",
     num_train_epochs=2,
     per_device_train_batch_size=6,
     per_device_eval_batch_size=6,
     warmup_ratio=0.08,
     weight_decay=1e-2,
-    logging_dir="./logs/speech-chatpgpt-base-nar",
+    logging_dir="./logs/speech-chatgpt-base-nar",
     logging_steps=500,
     save_steps=10000,
     save_total_limit=5,
@@ -35,7 +35,7 @@ TRAIN_ARGS = Seq2SeqTrainingArguments(
     fp16=True,
     learning_rate=1e-5,
     push_to_hub=True,
-    hub_model_id="lca0503/speech-chatpgpt-base-nar",
+    hub_model_id="lca0503/speech-chatgpt-base-nar",
     report_to="wandb",
 )
 

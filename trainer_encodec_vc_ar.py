@@ -12,18 +12,18 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 
 wandb.init(project="encodec_vc", 
-           name="speech-chatpgpt-base-ar",
+           name="speech-chatgpt-base-ar",
 )
 
 
 TRAIN_ARGS = Seq2SeqTrainingArguments(
-    output_dir="./training_output/speech-chatpgpt-base-ar",
+    output_dir="./training_output/speech-chatgpt-base-ar",
     num_train_epochs=5,
     per_device_train_batch_size=6,
     per_device_eval_batch_size=6,
     warmup_ratio=0.08,
     weight_decay=1e-2,
-    logging_dir="./logs/speech-chatpgpt-base-ar",
+    logging_dir="./logs/speech-chatgpt-base-ar",
     logging_steps=500,
     save_steps=10000,
     save_total_limit=5,
@@ -34,7 +34,7 @@ TRAIN_ARGS = Seq2SeqTrainingArguments(
     learning_rate=1e-5,
     generation_max_length=1024,
     push_to_hub=True,
-    hub_model_id="lca0503/speech-chatpgpt-base-ar",
+    hub_model_id="lca0503/speech-chatgpt-base-ar",
     report_to="wandb",
 )
 
@@ -98,7 +98,10 @@ def process_data_to_model_inputs(batch, tokenizer):
 def get_dataset(tokenizer, args):
     train_dataset = load_dataset(args.dataset, "train", split="+".join(args.train_splits))
     eval_dataset = load_dataset(args.dataset, "eval", split="+".join(args.eval_splits))
-
+    
+    # Inference is slow
+    eval_dataset = eval_dataset.train_test_split(test_size=1000)["test"]
+     
     train_dataset = train_dataset.map(
         process_data_to_model_inputs,
         remove_columns=train_dataset.column_names,
@@ -119,6 +122,8 @@ def get_dataset(tokenizer, args):
 
 def compute_metrics(eval_pred, tokenizer):
     predictions, labels = eval_pred
+    
+    predictions = [i[i != -100] for i in predictions]
     labels = [i[i != -100] for i in labels]
 
     decoded_preds = tokenizer.batch_decode(predictions, skip_special_tokens=True)
